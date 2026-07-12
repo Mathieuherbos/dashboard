@@ -163,6 +163,23 @@
   .login-msg.err { color: var(--red); }
   #login-step-code { display: none; }
   #login-step-code.visible { display: block; }
+  /* --- SCANNER --- */
+  #scan-overlay { display:none; position:fixed; inset:0; background:#000; z-index:2000; flex-direction:column; align-items:center; justify-content:center; }
+  #scan-overlay.active { display:flex; }
+  #scan-video { width:100%; max-width:480px; border-radius:12px; }
+  #scan-canvas { display:none; }
+  #scan-frame { position:relative; width:100%; max-width:480px; }
+  #scan-frame::after { content:''; position:absolute; inset:0; border:2px solid var(--violet); border-radius:12px; pointer-events:none; }
+  .scan-btn-row { display:flex; gap:12px; margin-top:18px; }
+  #scan-capture { background:var(--violet); color:#fff; border:none; border-radius:50%; width:64px; height:64px; font-size:28px; cursor:pointer; }
+  #scan-cancel { background:var(--card); color:var(--muted); border:1px solid var(--border); border-radius:50%; width:48px; height:48px; font-size:20px; cursor:pointer; align-self:center; }
+  #scan-result { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-top:16px; width:100%; max-width:480px; display:none; }
+  #scan-result.visible { display:block; }
+  #scan-result h3 { font-size:14px; font-weight:700; margin-bottom:8px; color:var(--cyan); }
+  .scan-macros { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .scan-macro { font-size:12px; color:var(--muted); }
+  .scan-macro strong { color:var(--text); }
+  #scan-msg { font-size:13px; color:var(--muted); margin-top:10px; text-align:center; }
   #login-email-hint { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
   #login-code { width: 100%; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 13px; border-radius: 10px; font-size: 28px; letter-spacing: 10px; text-align: center; margin-bottom: 12px; }
   #login-code:focus { outline: none; border-color: var(--violet); }
@@ -358,6 +375,9 @@
         <div class="sub" id="kcal-sub">—</div>
         <div class="bar"><span id="kcal-bar" style="width:0%"></span></div>
         <div id="food-list" style="margin-top:12px"></div>
+        <div class="addrow" style="margin-bottom:8px">
+          <button class="btn" id="scan-open-btn" style="background:var(--card2);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;gap:6px">📷 Scanner</button>
+        </div>
         <div class="addrow">
           <input type="text" id="food-name" list="food-db" placeholder="Aliment...">
           <input type="number" id="food-kcal" class="qty-inp" min="0" placeholder="kcal" style="width:78px">
@@ -1765,7 +1785,100 @@ document.getElementById("login-email").onkeydown = e => { if (e.key === "Enter")
 document.getElementById("login-password").onkeydown = e => { if (e.key === "Enter") document.getElementById("login-btn").click(); };
 document.getElementById("logout-link").onclick = async () => { await sb.auth.signOut(); };
 
+/* ---------- FOOD SCANNER ---------- */
+const WORKER_URL = "https://food-scanner.mathieu-herbos.workers.dev";
+let scanStream = null;
+let scanResult = null;
+
+document.getElementById("scan-open-btn").onclick = async () => {
+  const overlay = document.getElementById("scan-overlay");
+  const video = document.getElementById("scan-video");
+  const msg = document.getElementById("scan-msg");
+  document.getElementById("scan-result").classList.remove("visible");
+  msg.textContent = "Cadre le plat ou le code-barres et appuie sur 📷";
+  overlay.classList.add("active");
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    video.srcObject = scanStream;
+  } catch(e) {
+    msg.textContent = "Impossible d'accéder à la caméra : " + e.message;
+  }
+};
+
+function stopScan() {
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  document.getElementById("scan-overlay").classList.remove("active");
+  document.getElementById("scan-result").classList.remove("visible");
+}
+
+document.getElementById("scan-cancel").onclick = stopScan;
+
+document.getElementById("scan-capture").onclick = async () => {
+  const video = document.getElementById("scan-video");
+  const canvas = document.getElementById("scan-canvas");
+  const msg = document.getElementById("scan-msg");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+  const base64 = dataUrl.split(",")[1];
+  msg.textContent = "Analyse en cours…";
+  document.getElementById("scan-result").classList.remove("visible");
+  try {
+    const resp = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" })
+    });
+    const data = await resp.json();
+    const text = data.choices?.[0]?.message?.content || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Réponse inattendue");
+    scanResult = JSON.parse(jsonMatch[0]);
+    document.getElementById("scan-food-name").textContent = scanResult.name || "Aliment inconnu";
+    document.getElementById("scan-kcal").textContent = scanResult.kcal ?? "?";
+    document.getElementById("scan-protein").textContent = scanResult.protein ?? "?";
+    document.getElementById("scan-carbs").textContent = scanResult.carbs ?? "?";
+    document.getElementById("scan-fat").textContent = scanResult.fat ?? "?";
+    document.getElementById("scan-result").classList.add("visible");
+    msg.textContent = "Vérifie et confirme si ça te semble correct.";
+  } catch(e) {
+    msg.textContent = "Erreur d'analyse. Réessaie avec une meilleure lumière. (" + e.message + ")";
+  }
+};
+
+document.getElementById("scan-confirm").onclick = () => {
+  if (!scanResult) return;
+  document.getElementById("food-name").value = scanResult.name || "";
+  document.getElementById("food-kcal").value = scanResult.kcal || "";
+  document.getElementById("food-portions").value = "";
+  stopScan();
+  document.getElementById("food-add").click();
+};
+
 boot();
 </script>
+<!-- SCAN OVERLAY -->
+<div id="scan-overlay">
+  <div id="scan-frame">
+    <video id="scan-video" autoplay playsinline muted></video>
+    <canvas id="scan-canvas"></canvas>
+  </div>
+  <div id="scan-msg">Cadre le plat ou le code-barres et appuie sur 📷</div>
+  <div class="scan-btn-row">
+    <button id="scan-cancel">✕</button>
+    <button id="scan-capture">📷</button>
+  </div>
+  <div id="scan-result">
+    <h3 id="scan-food-name">—</h3>
+    <div class="scan-macros">
+      <div class="scan-macro">Calories : <strong id="scan-kcal">—</strong> kcal</div>
+      <div class="scan-macro">Protéines : <strong id="scan-protein">—</strong> g</div>
+      <div class="scan-macro">Glucides : <strong id="scan-carbs">—</strong> g</div>
+      <div class="scan-macro">Lipides : <strong id="scan-fat">—</strong> g</div>
+    </div>
+    <button class="btn" id="scan-confirm" style="width:100%">✓ Ajouter au journal</button>
+  </div>
+</div>
 </body>
 </html>
