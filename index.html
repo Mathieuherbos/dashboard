@@ -161,6 +161,12 @@
   .login-msg { font-size: 13px; margin-top: 14px; min-height: 18px; }
   .login-msg.ok { color: var(--green); }
   .login-msg.err { color: var(--red); }
+  #login-step-code { display: none; }
+  #login-step-code.visible { display: block; }
+  #login-email-hint { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  #login-code { width: 100%; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 13px; border-radius: 10px; font-size: 28px; letter-spacing: 10px; text-align: center; margin-bottom: 12px; }
+  #login-code:focus { outline: none; border-color: var(--violet); }
+  .btn-ghost { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; margin-top: 8px; text-decoration: underline; display: block; margin-left: auto; margin-right: auto; }
   #sync-badge { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; cursor: default; }
   #sync-badge .sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
   #sync-badge.ok .sdot { background: var(--green); }
@@ -174,9 +180,20 @@
 <div id="login-overlay">
   <div class="login-card">
     <h1>Mon Dashboard</h1>
-    <p>Connecte-toi pour accéder à tes données, synchronisées sur tous tes appareils.</p>
-    <input type="email" id="login-email" placeholder="ton@email.com" autocomplete="email">
-    <button class="btn" id="login-btn">Recevoir mon lien de connexion</button>
+
+    <div id="login-step-email">
+      <p>Connecte-toi pour accéder à tes données, synchronisées sur tous tes appareils.</p>
+      <input type="email" id="login-email" placeholder="ton@email.com" autocomplete="email">
+      <button class="btn" id="login-btn">Recevoir mon code</button>
+    </div>
+
+    <div id="login-step-code">
+      <p>Code envoyé à <strong id="login-email-hint"></strong></p>
+      <input type="text" id="login-code" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+      <button class="btn" id="login-verify-btn">Se connecter</button>
+      <button class="btn-ghost" id="login-back-btn">← Changer d'adresse</button>
+    </div>
+
     <div class="login-msg" id="login-msg"></div>
   </div>
 </div>
@@ -1743,16 +1760,44 @@ async function boot() {
   });
 }
 
+let _otpEmail = "";
+
 document.getElementById("login-btn").onclick = async () => {
   const email = document.getElementById("login-email").value.trim();
   const msg = document.getElementById("login-msg");
   if (!email) { msg.className = "login-msg err"; msg.textContent = "Entre ton adresse email."; return; }
   msg.className = "login-msg"; msg.textContent = "Envoi en cours…";
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href.split("#")[0] } });
-  if (error) { msg.className = "login-msg err"; msg.textContent = "Erreur : " + error.message; }
-  else { msg.className = "login-msg ok"; msg.textContent = "Lien envoyé ! Vérifie ta boîte mail et clique dessus."; }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+  if (error) {
+    msg.className = "login-msg err"; msg.textContent = "Erreur : " + error.message;
+  } else {
+    _otpEmail = email;
+    document.getElementById("login-step-email").style.display = "none";
+    document.getElementById("login-step-code").classList.add("visible");
+    document.getElementById("login-email-hint").textContent = email;
+    document.getElementById("login-code").focus();
+    msg.className = "login-msg ok"; msg.textContent = "Code envoyé ! Vérifie ta boîte mail.";
+  }
 };
 document.getElementById("login-email").onkeydown = e => { if (e.key === "Enter") document.getElementById("login-btn").click(); };
+
+document.getElementById("login-verify-btn").onclick = async () => {
+  const code = document.getElementById("login-code").value.trim();
+  const msg = document.getElementById("login-msg");
+  if (code.length !== 6) { msg.className = "login-msg err"; msg.textContent = "Le code doit faire 6 chiffres."; return; }
+  msg.className = "login-msg"; msg.textContent = "Vérification…";
+  const { error } = await sb.auth.verifyOtp({ email: _otpEmail, token: code, type: "email" });
+  if (error) { msg.className = "login-msg err"; msg.textContent = "Code incorrect ou expiré. Réessaie."; }
+};
+document.getElementById("login-code").onkeydown = e => { if (e.key === "Enter") document.getElementById("login-verify-btn").click(); };
+
+document.getElementById("login-back-btn").onclick = () => {
+  document.getElementById("login-step-email").style.display = "";
+  document.getElementById("login-step-code").classList.remove("visible");
+  document.getElementById("login-msg").textContent = "";
+  document.getElementById("login-code").value = "";
+};
+
 document.getElementById("logout-link").onclick = async () => { await sb.auth.signOut(); };
 
 boot();
