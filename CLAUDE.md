@@ -15,19 +15,26 @@ Objectifs (annuels/mensuels/hebdo/quotidiens), To-Do du jour (récurrentes + pon
 - **Auth** : Supabase, connexion par lien magique email (magic link). Accès privé.
 - **Hébergement** : GitHub Pages (branche par défaut, dossier racine).
 
-## Configuration à renseigner
+## Configuration (déployée)
 
-En haut du `<script>` dans `index.html` :
-```js
-const SUPABASE_URL = "https://TON-PROJET.supabase.co";
-const SUPABASE_ANON_KEY = "TA_CLE_ANON_PUBLIQUE";
-```
-La clé `anon` est publique (protégée par les règles RLS) → OK de la committer.
-Ne JAMAIS committer la clé `service_role` ni un token d'accès.
+- **URL GitHub Pages** : https://mathieuherbos.github.io/dashboard/
+- **Repo GitHub** : https://github.com/Mathieuherbos/dashboard (public)
+- **Supabase Project ID** : `egsveitvoukdsteepxgg`
+- **Supabase URL** : `https://egsveitvoukdsteepxgg.supabase.co`
+- **Supabase region** : eu-central-1 (Frankfurt)
+- **Clé anon** : dans `index.html` (publique, OK à committer)
+- Ne JAMAIS committer la clé `service_role` ni un token d'accès Supabase.
+
+## Auth Supabase (configurée)
+
+- Site URL : `https://mathieuherbos.github.io/dashboard/`
+- Redirect URLs : `https://mathieuherbos.github.io/dashboard/`
+- Connexion par magic link email uniquement.
+- Après la 1re connexion : désactiver "Allow new users to sign up" dans Supabase → Authentication → Providers.
 
 ## Base de données
 
-`supabase-init.sql` : crée la table `dashboards` + les policies RLS (chaque user ne voit que sa ligne).
+`supabase-init.sql` : crée la table `dashboards` + les policies RLS (chaque user ne voit que sa ligne). Déjà appliqué.
 
 ## Modèle de données (résumé)
 
