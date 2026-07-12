@@ -444,6 +444,29 @@
   <input type="file" id="import-file" accept="application/json" style="display:none">
 </div>
 
+<!-- SCAN OVERLAY -->
+<div id="scan-overlay">
+  <div id="scan-frame">
+    <video id="scan-video" autoplay playsinline muted></video>
+    <canvas id="scan-canvas"></canvas>
+  </div>
+  <div id="scan-msg">Cadre le plat ou le code-barres et appuie sur 📷</div>
+  <div class="scan-btn-row">
+    <button id="scan-cancel">✕</button>
+    <button id="scan-capture">📷</button>
+  </div>
+  <div id="scan-result">
+    <h3 id="scan-food-name">—</h3>
+    <div class="scan-macros">
+      <div class="scan-macro">Calories : <strong id="scan-kcal">—</strong> kcal</div>
+      <div class="scan-macro">Protéines : <strong id="scan-protein">—</strong> g</div>
+      <div class="scan-macro">Glucides : <strong id="scan-carbs">—</strong> g</div>
+      <div class="scan-macro">Lipides : <strong id="scan-fat">—</strong> g</div>
+    </div>
+    <button class="btn" id="scan-confirm" style="width:100%">✓ Ajouter au journal</button>
+  </div>
+</div>
+
 <script>
 const KEY = "mathieu_dashboard_v2";
 
@@ -1858,27 +1881,5 @@ document.getElementById("scan-confirm").onclick = () => {
 
 boot();
 </script>
-<!-- SCAN OVERLAY -->
-<div id="scan-overlay">
-  <div id="scan-frame">
-    <video id="scan-video" autoplay playsinline muted></video>
-    <canvas id="scan-canvas"></canvas>
-  </div>
-  <div id="scan-msg">Cadre le plat ou le code-barres et appuie sur 📷</div>
-  <div class="scan-btn-row">
-    <button id="scan-cancel">✕</button>
-    <button id="scan-capture">📷</button>
-  </div>
-  <div id="scan-result">
-    <h3 id="scan-food-name">—</h3>
-    <div class="scan-macros">
-      <div class="scan-macro">Calories : <strong id="scan-kcal">—</strong> kcal</div>
-      <div class="scan-macro">Protéines : <strong id="scan-protein">—</strong> g</div>
-      <div class="scan-macro">Glucides : <strong id="scan-carbs">—</strong> g</div>
-      <div class="scan-macro">Lipides : <strong id="scan-fat">—</strong> g</div>
-    </div>
-    <button class="btn" id="scan-confirm" style="width:100%">✓ Ajouter au journal</button>
-  </div>
-</div>
 </body>
 </html>
