@@ -27,10 +27,10 @@ Objectifs (annuels/mensuels/hebdo/quotidiens), To-Do du jour (récurrentes + pon
 
 ## Auth Supabase (configurée)
 
+- Connexion par **email + mot de passe** (`signInWithPassword`)
+- Compte unique : `mathieu.herbos@gmail.com`
+- Nouvelles inscriptions désactivées (`disable_signup: true`)
 - Site URL : `https://mathieuherbos.github.io/dashboard/`
-- Redirect URLs : `https://mathieuherbos.github.io/dashboard/`
-- Connexion par magic link email uniquement.
-- Après la 1re connexion : désactiver "Allow new users to sign up" dans Supabase → Authentication → Providers.
 
 ## Base de données
 
