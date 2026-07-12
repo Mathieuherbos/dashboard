@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#12082A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Mon Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #12082A;
+    --bg2: #1B0F3B;
+    --card: #1E1140;
+    --card2: #241650;
+    --border: #33235f;
+    --violet: #8B5CF6;
+    --violet-l: #A78BFA;
+    --cyan: #67E8F9;
+    --text: #EDE9FE;
+    --muted: #9B8FC7;
+    --green: #34D399;
+    --red: #FB7185;
+    --grad: linear-gradient(90deg, #A78BFA 0%, #67E8F9 100%);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header.top {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
+  }
+  .title h1 {
+    font-size: 26px; font-weight: 800; letter-spacing: -0.5px;
+    background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .title .date { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .tabs { display: flex; gap: 6px; background: var(--card); padding: 5px; border-radius: 12px; border: 1px solid var(--border); flex-wrap: wrap; }
+  .tab {
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+    color: var(--muted); border: none; background: transparent; transition: .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--violet); color: white; }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .grid { display: grid; gap: 16px; }
+  .cards2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .card .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+
+  .obj {
+    background: var(--card2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  .obj-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .obj-title { font-size: 14px; font-weight: 600; flex: 1; word-break: break-word; }
+  .obj-pct { font-size: 13px; font-weight: 700; color: var(--cyan); white-space: nowrap; }
+  .obj-note { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .link-meta { color: var(--cyan); margin-top: 9px; font-weight: 600; }
+  .bar { height: 8px; background: #2c1d55; border-radius: 20px; overflow: hidden; margin-top: 10px; }
+  .bar > span { display: block; height: 100%; background: var(--grad); border-radius: 20px; transition: width .3s; }
+  .obj-ctrl { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .obj-ctrl input[type=range] { flex: 1; accent-color: var(--violet); }
+  .mini { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 7px; width: 26px; height: 26px; cursor: pointer; font-size: 14px; }
+  .mini:hover { color: var(--text); border-color: var(--violet); }
+  .mini.del:hover { color: var(--red); border-color: var(--red); }
+
+  .addrow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .addrow input[type=text] {
+    flex: 1; min-width: 140px; background: var(--bg2); border: 1px solid var(--border);
+    color: var(--text); padding: 9px 12px; border-radius: 9px; font-size: 13px;
+  }
+  .addrow input[type=text]:focus { outline: none; border-color: var(--violet); }
+  .btn {
+    background: var(--violet); color: white; border: none; padding: 9px 15px; border-radius: 9px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: .15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--violet-l); }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); border-color: var(--violet); }
+
+  /* todos */
+  .todo {
+    display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 10px;
+    background: var(--card2); border: 1px solid var(--border); margin-bottom: 8px;
+  }
+  .todo.done { opacity: .55; }
+  .todo.done .todo-text { text-decoration: line-through; }
+  .check {
+    width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--muted);
+    cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: .15s; background: transparent;
+  }
+  .check.on { background: var(--green); border-color: var(--green); }
+  .check.on::after { content: "✓"; color: #06281c; font-size: 14px; font-weight: 900; }
+  .todo-text { flex: 1; font-size: 14px; word-break: break-word; }
+  .qty-inp { width: 68px; background: var(--bg2); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 5px 8px; font-size: 13px; }
+  .qty-inp:focus { outline: none; border-color: var(--violet); }
+  .todo-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; text-transform: uppercase; letter-spacing: .5px; }
+  .tag-rec { background: rgba(103,232,249,.15); color: var(--cyan); }
+  .tag-one { background: rgba(167,139,250,.15); color: var(--violet-l); }
+  .tag-carry { background: rgba(251,113,133,.15); color: var(--red); }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .stat .num { font-size: 30px; font-weight: 800; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .stat .lbl { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  .chart-box { position: relative; height: 260px; }
+  .sel { background: var(--bg2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .sel:focus { outline: none; border-color: var(--violet); }
+  .date-inp { background: var(--bg2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 9px; font-size: 13px; font-weight: 700; color-scheme: dark; flex: 1; }
+  .ex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin-top: 12px; }
+  .ex-field { display: flex; flex-direction: column; gap: 4px; }
+  .ex-field label { font-size: 11px; color: var(--muted); }
+  .ex-field .u { color: var(--violet-l); }
+  .ex-field input { width: 100%; background: var(--bg2); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 6px 8px; font-size: 13px; }
+  .ex-field input:focus { outline: none; border-color: var(--violet); }
+  .ex-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 9px; background: var(--card2); border: 1px solid var(--border); margin-bottom: 7px; }
+  .rating { display: flex; gap: 6px; flex-wrap: wrap; }
+  .rating button { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg2); color: var(--muted); cursor: pointer; font-size: 15px; transition: .12s; }
+  .rating button:hover { border-color: var(--violet); }
+  .rating button.on { background: var(--violet); color: #fff; border-color: var(--violet); }
+  .heatmap { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+  .heat-col { display: flex; flex-direction: column; gap: 3px; }
+  .heat-cell { width: 13px; height: 13px; border-radius: 3px; background: #241650; }
+  .heat-legend { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11px; color: var(--muted); }
+  .recap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 6px; }
+  .recap-item { background: var(--card2); border: 1px solid var(--border); border-radius: 11px; padding: 13px 15px; }
+  .recap-item .rv { font-size: 20px; font-weight: 800; color: var(--text); }
+  .recap-item .rl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 22px 0; font-style: italic; }
+  .sec-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin: 4px 0 10px; }
+  .footer { text-align: center; color: var(--muted); font-size: 11px; margin-top: 24px; }
+  .footer a { color: var(--violet-l); cursor: pointer; text-decoration: none; }
+  .row-between { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  #login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+  .login-card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 30px 26px; max-width: 380px; width: 100%; text-align: center; }
+  .login-card h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .login-card p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .login-card input { width: 100%; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 11px 13px; border-radius: 10px; font-size: 14px; margin-bottom: 12px; }
+  .login-card input:focus { outline: none; border-color: var(--violet); }
+  .login-card .btn { width: 100%; padding: 12px; font-size: 14px; }
+  .login-msg { font-size: 13px; margin-top: 14px; min-height: 18px; }
+  .login-msg.ok { color: var(--green); }
+  .login-msg.err { color: var(--red); }
+  #sync-badge { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; cursor: default; }
+  #sync-badge .sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  #sync-badge.ok .sdot { background: var(--green); }
+  #sync-badge.saving .sdot { background: var(--cyan); }
+  #sync-badge.err .sdot { background: var(--red); }
+  #sync-badge a { color: var(--violet-l); cursor: pointer; text-decoration: none; margin-left: 8px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="login-overlay">
+  <div class="login-card">
+    <h1>Mon Dashboard</h1>
+    <p>Connecte-toi pour accéder à tes données, synchronisées sur tous tes appareils.</p>
+    <input type="email" id="login-email" placeholder="ton@email.com" autocomplete="email">
+    <button class="btn" id="login-btn">Recevoir mon lien de connexion</button>
+    <div class="login-msg" id="login-msg"></div>
+  </div>
+</div>
+
+<div class="wrap hidden" id="app">
+  <header class="top">
+    <div class="title">
+      <h1>Mon Dashboard</h1>
+      <div class="date" id="today"></div>
+      <div id="sync-badge"><span class="sdot"></span><span id="sync-text">Connexion…</span><a id="logout-link">Déconnexion</a></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="objectifs">🎯 Objectifs</button>
+      <button class="tab" data-tab="todo">✅ To-Do du jour</button>
+      <button class="tab" data-tab="sport">🏋️ Sport</button>
+      <button class="tab" data-tab="sante">❤️ Santé</button>
+      <button class="tab" data-tab="finances">💰 Finances</button>
+      <button class="tab" data-tab="vue">📊 Vue d'ensemble</button>
+    </div>
+  </header>
+
+  <!-- OBJECTIFS -->
+  <section class="panel active" id="objectifs">
+    <div class="grid cards2" id="obj-cats"></div>
+  </section>
+
+  <!-- TODO -->
+  <section class="panel" id="todo">
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="t-done">0</div><div class="lbl">Tâches faites aujourd'hui</div></div>
+      <div class="stat"><div class="num" id="t-total">0</div><div class="lbl">Tâches du jour</div></div>
+      <div class="stat"><div class="num" id="t-pct">0%</div><div class="lbl">Complétion du jour</div></div>
+      <div class="stat"><div class="num" id="t-streak">0</div><div class="lbl">Jours d'affilée 100%</div></div>
+    </div>
+    <div class="grid cards2">
+      <div class="card">
+        <div class="row-between">
+          <div><h2><span class="dot" style="background:var(--cyan)"></span>Tâches du jour</h2>
+          <div class="sub" style="margin:0">Coche au fur et à mesure. Les récurrentes reviennent chaque jour.</div></div>
+          <button class="btn ghost" id="reset-day" title="Décocher tout pour aujourd'hui">↺ Reset</button>
+        </div>
+        <div id="todo-list" class="js-todo-holder"></div>
+        <div class="addrow">
+          <input type="text" id="todo-input" placeholder="Nouvelle tâche ponctuelle...">
+          <button class="btn" id="add-todo">+ Ajouter</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2><span class="dot" style="background:var(--violet)"></span>Tâches récurrentes</h2>
+        <div class="sub">Modèles ajoutés automatiquement chaque jour.</div>
+        <div id="rec-list"></div>
+        <div class="addrow">
+          <input type="text" id="rec-input" placeholder="Ex: Faire du sport, checker les emails...">
+          <button class="btn" id="add-rec">+ Ajouter</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINANCES -->
+  <section class="panel" id="finances">
+    <div class="stat-row" id="fin-stats"></div>
+    <div class="grid cards2">
+      <div class="card">
+        <h2><span class="dot" style="background:var(--green)"></span>Side business</h2>
+        <div class="sub">Objectif de revenu mensuel. Ajoute tes rentrées, suis ta progression du mois.</div>
+        <div class="addrow" style="align-items:center">
+          <span class="sub">Objectif €/mois :</span>
+          <input type="number" id="fin-goal" class="qty-inp" min="0" style="width:100px">
+        </div>
+        <div class="bar" style="margin-top:12px"><span id="fin-month-bar" style="width:0%"></span></div>
+        <div class="sub" id="fin-month-sub" style="margin-top:6px">—</div>
+        <div id="income-list" style="margin-top:12px"></div>
+        <div class="addrow">
+          <input type="date" id="inc-date" class="date-inp">
+          <input type="text" id="inc-label" placeholder="Source (ex: client X)">
+          <input type="number" id="inc-amount" class="qty-inp" min="0" placeholder="€" style="width:84px">
+          <button class="btn" id="inc-add">+ Ajouter</button>
+        </div>
+        <div class="chart-box" style="height:200px;margin-top:12px"><canvas id="chart-income"></canvas></div>
+      </div>
+      <div class="card">
+        <h2><span class="dot" style="background:var(--violet)"></span>Remboursements</h2>
+        <div class="sub">Suis tes dettes à rembourser. Ajoute un versement à chaque paiement.</div>
+        <div id="debt-list" style="margin-top:12px"></div>
+        <div class="addrow">
+          <input type="text" id="debt-name" placeholder="Nouvelle dette...">
+          <input type="number" id="debt-total" class="qty-inp" min="0" placeholder="total €" style="width:88px">
+          <button class="btn" id="debt-add">+ Ajouter</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VUE -->
+  <section class="panel" id="vue">
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="v-obj">0%</div><div class="lbl">Progression moyenne objectifs</div></div>
+      <div class="stat"><div class="num" id="v-week">0%</div><div class="lbl">Complétion moy. (7 j)</div></div>
+      <div class="stat"><div class="num" id="v-count">0</div><div class="lbl">Objectifs suivis</div></div>
+    </div>
+    <div class="grid cards2">
+      <div class="card"><h2>Progression par catégorie</h2><div class="sub">Moyenne des objectifs de chaque horizon.</div><div class="chart-box"><canvas id="chart-obj"></canvas></div></div>
+      <div class="card"><h2>Complétion des tâches (14 j)</h2><div class="sub">% de tâches cochées chaque jour.</div><div class="chart-box"><canvas id="chart-todo"></canvas></div></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>🔥 Régularité des tâches (12 semaines)</h2>
+      <div class="sub">Une case par jour — plus c'est vert, plus tu as coché de tâches ce jour-là.</div>
+      <div class="heatmap" id="heatmap" style="margin-top:12px"></div>
+      <div class="heat-legend">Moins
+        <span class="heat-cell" style="background:#241650"></span>
+        <span class="heat-cell" style="background:#3b2a6b"></span>
+        <span class="heat-cell" style="background:#6d4fc0"></span>
+        <span class="heat-cell" style="background:#8B5CF6"></span>
+        <span class="heat-cell" style="background:#67E8F9"></span>
+      Plus</div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>📅 Récap de la semaine</h2>
+      <div class="sub">Ton point hebdo en un coup d'œil (semaine en cours, lundi→dimanche).</div>
+      <div class="recap-grid" id="weekly-recap"></div>
+    </div>
+  </section>
+
+  <!-- SPORT -->
+  <section class="panel" id="sport">
+    <div class="stat-row" id="sport-stats"></div>
+    <div class="grid cards2">
+      <div class="card">
+        <div class="row-between">
+          <div><h2><span class="dot" style="background:var(--violet)"></span>Mes séances</h2>
+          <div class="sub" style="margin:0">Ajoute une séance et saisis reps ou poids par exercice.</div></div>
+          <button class="btn" id="add-session">＋ Nouvelle séance</button>
+        </div>
+        <div id="session-list"></div>
+        <div class="sec-title" style="margin-top:18px">Exercices suivis</div>
+        <div id="ex-list"></div>
+        <div class="addrow">
+          <input type="text" id="ex-input" placeholder="Nouvel exercice...">
+          <select id="ex-unit" class="sel"><option value="reps">répétitions</option><option value="kg">poids (kg)</option></select>
+          <button class="btn" id="add-ex">+ Ajouter</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>📈 Évolution</h2>
+        <div class="sub">Progression d'un exercice au fil des séances.</div>
+        <select id="chart-ex" class="sel" style="margin-bottom:6px"></select>
+        <div id="sport-record" class="sub" style="margin-top:6px"></div>
+        <div class="chart-box"><canvas id="chart-sport"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SANTE -->
+  <section class="panel" id="sante">
+    <div class="stat-row" id="health-stats"></div>
+    <div class="grid cards2">
+      <div class="card">
+        <h2><span class="dot" style="background:var(--cyan)"></span>Poids</h2>
+        <div class="sub">Enregistre ton poids pour suivre l'évolution.</div>
+        <div class="addrow">
+          <input type="date" id="w-date" class="date-inp">
+          <input type="number" id="w-val" class="qty-inp" step="0.1" min="0" placeholder="kg" style="width:90px">
+          <button class="btn" id="w-add">Enregistrer</button>
+        </div>
+        <div class="chart-box" style="margin-top:14px"><canvas id="chart-weight"></canvas></div>
+      </div>
+      <div class="card">
+        <h2><span class="dot" style="background:var(--violet)"></span>Nourriture du jour</h2>
+        <div class="sub" id="kcal-sub">—</div>
+        <div class="bar"><span id="kcal-bar" style="width:0%"></span></div>
+        <div id="food-list" style="margin-top:12px"></div>
+        <div class="addrow">
+          <input type="text" id="food-name" list="food-db" placeholder="Aliment...">
+          <input type="number" id="food-kcal" class="qty-inp" min="0" placeholder="kcal" style="width:78px">
+          <input type="number" id="food-portions" class="qty-inp" min="1" placeholder="÷ parts" style="width:74px" title="Nombre de portions (meal prep) — le total sera divisé">
+          <button class="btn" id="food-add">+ Ajouter</button>
+        </div>
+        <div class="sub" style="margin-top:6px">Meal prep : entre le total kcal du plat + le nombre de portions → une part est enregistrée et mémorisée pour la réutiliser.</div>
+        <datalist id="food-db"></datalist>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>🎯 Profil &amp; objectif calorique</h2>
+      <div class="sub">Sert à calculer ton besoin quotidien (méthode Mifflin-St Jeor), à partir de ton dernier poids enregistré.</div>
+      <div class="ex-grid">
+        <div class="ex-field"><label>Sexe</label>
+          <select id="p-sex" class="sel"><option value="h">Homme</option><option value="f">Femme</option></select></div>
+        <div class="ex-field"><label>Âge</label><input type="number" id="p-age" min="0" placeholder="ans"></div>
+        <div class="ex-field"><label>Taille (cm)</label><input type="number" id="p-height" min="0" placeholder="cm"></div>
+        <div class="ex-field"><label>Activité</label>
+          <select id="p-activity" class="sel">
+            <option value="sedentary">Sédentaire</option>
+            <option value="light">Légère</option>
+            <option value="moderate">Modérée</option>
+            <option value="intense">Intense</option>
+          </select></div>
+        <div class="ex-field"><label>Objectif</label>
+          <select id="p-goal" class="sel">
+            <option value="lose">Perdre du poids</option>
+            <option value="maintain">Maintenir</option>
+            <option value="gain">Prendre (masse)</option>
+          </select></div>
+      </div>
+      <div id="target-info" class="link-meta" style="margin-top:14px"></div>
+    </div>
+    <div class="grid cards2" style="margin-top:16px">
+      <div class="card">
+        <h2>🚭 Arrêt cigarette</h2>
+        <div class="sub">Depuis ta date d'arrêt : temps sans fumer, argent et cigarettes évités.</div>
+        <div id="smoke-stats" class="recap-grid"></div>
+        <div class="sec-title" style="margin-top:16px">Paramètres</div>
+        <div class="ex-grid">
+          <div class="ex-field"><label>Date d'arrêt</label><input type="date" id="sm-date" class="date-inp" style="flex:none"></div>
+          <div class="ex-field"><label>Prix du paquet (€)</label><input type="number" id="sm-price" min="0" step="0.1"></div>
+          <div class="ex-field"><label>Cigarettes / jour</label><input type="number" id="sm-perday" min="0"></div>
+          <div class="ex-field"><label>Cig. / paquet</label><input type="number" id="sm-perpack" min="1"></div>
+        </div>
+        <div class="addrow"><button class="btn ghost" id="sm-reset" title="Repartir d'aujourd'hui">↺ J'ai arrêté aujourd'hui</button></div>
+      </div>
+      <div class="card">
+        <h2>🧭 Check-in du jour</h2>
+        <div class="sub">Humeur, énergie et sommeil — un tap par jour.</div>
+        <div style="margin-top:8px"><label class="sub" style="display:block;margin-bottom:5px">Humeur</label><div class="rating" id="ci-mood"></div></div>
+        <div style="margin-top:12px"><label class="sub" style="display:block;margin-bottom:5px">Énergie</label><div class="rating" id="ci-energy"></div></div>
+        <div class="addrow" style="margin-top:14px">
+          <input type="number" id="ci-sleep" class="qty-inp" min="0" max="24" step="0.5" placeholder="h de sommeil" style="width:120px">
+          <span class="sub" style="align-self:center">heures dormies</span>
+        </div>
+        <div class="chart-box" style="height:200px;margin-top:12px"><canvas id="chart-checkin"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">Données sauvegardées localement sur ton appareil · <a id="export">Exporter</a> · <a id="import">Importer</a> · <a id="wipe">Réinitialiser</a></div>
+  <input type="file" id="import-file" accept="application/json" style="display:none">
+</div>
+
+<script>
+const KEY = "mathieu_dashboard_v2";
+
+/* ======================================================================
+   CONFIGURATION SUPABASE — remplace ces 2 valeurs (voir guide de setup)
+   ====================================================================== */
+const SUPABASE_URL = "https://TON-PROJET.supabase.co";
+const SUPABASE_ANON_KEY = "TA_CLE_ANON_PUBLIQUE";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let userId = null;
+
+function setSync(state, text) {
+  const b = document.getElementById("sync-badge");
+  if (!b) return;
+  b.className = state || "";
+  const t = document.getElementById("sync-text");
+  if (t && text) t.textContent = text;
+  else if (t) t.textContent = { saving: "Sauvegarde…", ok: "Synchronisé", err: "Hors ligne" }[state] || "";
+}
+const CATS = [
+  { id: "daily",   label: "Objectifs quotidiens",    color: "#34D399" },
+  { id: "weekly",  label: "Objectifs hebdomadaires", color: "#67E8F9" },
+  { id: "monthly", label: "Objectifs mensuels",      color: "#8B5CF6" },
+  { id: "annual",  label: "Objectifs annuels",       color: "#A78BFA" },
+];
+const TZ = "Europe/Brussels";
+const dateKey = (d) => d.toLocaleDateString("fr-CA", { timeZone: TZ }); // YYYY-MM-DD (heure de Bruxelles)
+const todayStr = () => dateKey(new Date());
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+function seed() {
+  return {
+    objectives: {
+      annual:  [
+        { id: uid(), title: "Remboursement Securex", note: "", progress: 0 },
+        { id: uid(), title: "Remboursement Nicolas", note: "", progress: 0 },
+        { id: uid(), title: "1000 €/mois en side business", note: "", progress: 0 },
+        { id: uid(), title: "Sport 4×/semaine", note: "", progress: 0 },
+        { id: uid(), title: "Arrêter la cigarette", note: "", progress: 0 },
+        { id: uid(), title: "Dentiste", note: "", progress: 0 },
+        { id: uid(), title: "Lunettes", note: "", progress: 0 },
+        { id: uid(), title: "San Francisco", note: "", progress: 0 },
+      ],
+      weekly:  [
+        { id: uid(), title: "Lire 50 pages", note: "", progress: 0, link: { match: "lire", perCheck: 10, target: 50, unit: "pages" } },
+        { id: uid(), title: "Sport 4x", note: "", progress: 0, link: { match: "sport", perCheck: 1, target: 4 } },
+        { id: uid(), title: "Souplesse 2x", note: "", progress: 0, link: { match: "souplesse", perCheck: 1, target: 2 } },
+        { id: uid(), title: "Introspection", note: "", progress: 0 },
+        { id: uid(), title: "Nettoyer", note: "", progress: 0 },
+        { id: uid(), title: "To do week", note: "", progress: 0 },
+      ],
+      monthly: [],
+      daily:   [],
+    },
+    recurring: [
+      { id: uid(), text: "Sport" },
+      { id: uid(), text: "Lire 10 pages", qtyInput: true, unit: "pages" },
+      { id: uid(), text: "To do du jour" },
+      { id: uid(), text: "Untouched" },
+      { id: uid(), text: "Ranger" },
+      { id: uid(), text: "Vitamines" },
+      { id: uid(), text: "Admin" },
+    ],
+    sport: defaultSport(),
+    health: defaultHealth(),
+    finances: defaultFinances(),
+    todosByDate: {},
+    lastSeen: todayStr(),
+    _mig: 6,
+  };
+}
+
+function defaultHealth() {
+  return {
+    profile: { sex: "h", age: 34, height: 185, activity: "moderate", goal: "lose" },
+    weightByDate: { [todayStr()]: 90.5 },
+    nutritionByDate: {},
+    customFoods: {},
+    smoking: { quitDate: null, pricePerPack: 12, cigsPerDay: 20, cigsPerPack: 20 },
+    checkinByDate: {},
+  };
+}
+
+function defaultFinances() {
+  return {
+    incomeGoal: 1000,
+    incomeEntries: [],
+    debts: [
+      { id: uid(), name: "Remboursement Securex", total: 0, paid: 0 },
+      { id: uid(), name: "Remboursement Nicolas", total: 0, paid: 0 },
+    ],
+  };
+}
+
+function defaultSport() {
+  return {
+    exercises: [
+      { id: uid(), name: "Traction pronation", unit: "reps" },
+      { id: uid(), name: "Traction supination", unit: "reps" },
+      { id: uid(), name: "Dips", unit: "reps" },
+      { id: uid(), name: "Pompes", unit: "reps" },
+      { id: uid(), name: "Développé couché", unit: "kg" },
+    ],
+    sessions: [],
+  };
+}
+
+// Migrations douces : ajoute de nouveaux éléments sans écraser les données existantes
+function migrate(d) {
+  d._mig = d._mig || 0;
+  if (d._mig < 1) {
+    const wk = ["Lire 50 pages", "Sport 4x", "Souplesse 2x", "Introspection", "Nettoyer", "To do week"];
+    d.objectives.weekly = d.objectives.weekly || [];
+    wk.forEach(t => { if (!d.objectives.weekly.some(o => o.title === t)) d.objectives.weekly.push({ id: uid(), title: t, note: "", progress: 0 }); });
+    const rec = ["Lire 10 pages", "To do du jour", "Untouched", "Ranger", "Vitamines", "Admin"];
+    d.recurring = d.recurring || [];
+    rec.forEach(t => { if (!d.recurring.some(r => r.text === t)) d.recurring.push({ id: uid(), text: t }); });
+    d._mig = 1;
+  }
+  if (d._mig < 2) {
+    // Lie certains objectifs hebdo aux tâches cochées de la semaine
+    const linkMap = {
+      "Lire 50 pages": { match: "lire", perCheck: 10, target: 50 },
+      "Sport 4x": { match: "sport", perCheck: 1, target: 4 },
+      "Souplesse 2x": { match: "souplesse", perCheck: 1, target: 2 },
+    };
+    (d.objectives.weekly || []).forEach(o => { if (linkMap[o.title] && !o.link) o.link = linkMap[o.title]; });
+    d._mig = 2;
+  }
+  if (d._mig < 3) {
+    // "Lire 10 pages" devient une tâche à quantité (nb de pages saisi manuellement)
+    (d.recurring || []).forEach(r => { if (r.text === "Lire 10 pages") { r.qtyInput = true; r.unit = "pages"; } });
+    (d.objectives.weekly || []).forEach(o => { if (o.title === "Lire 50 pages" && o.link) o.link.unit = "pages"; });
+    d._mig = 3;
+  }
+  if (d._mig < 4) {
+    if (!d.sport) d.sport = defaultSport();
+    d._mig = 4;
+  }
+  if (d._mig < 5) {
+    if (!d.health) d.health = defaultHealth();
+    d._mig = 5;
+  }
+  if (d._mig < 6) {
+    if (!d.finances) d.finances = defaultFinances();
+    d.health = d.health || defaultHealth();
+    if (!d.health.smoking) d.health.smoking = { quitDate: null, pricePerPack: 12, cigsPerDay: 20, cigsPerPack: 20 };
+    if (!d.health.checkinByDate) d.health.checkinByDate = {};
+    if (!d.health.customFoods) d.health.customFoods = {};
+    d._mig = 6;
+  }
+  return d;
+}
+
+let data = null;
+function normalize(d) {
+  d.objectives = d.objectives || seed().objectives;
+  d.recurring = d.recurring || [];
+  d.todosByDate = d.todosByDate || {};
+  return migrate(d);
+}
+function localLoad() {
+  try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+let saveTimer = null;
+function save() {
+  if (!data) return;
+  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+  if (userId) { clearTimeout(saveTimer); setSync("saving"); saveTimer = setTimeout(pushToCloud, 700); }
+}
+async function pushToCloud() {
+  if (!userId || !data) return;
+  try {
+    const { error } = await sb.from("dashboards").upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+    setSync(error ? "err" : "ok", error ? "Erreur de synchro" : "Synchronisé");
+  } catch (e) { setSync("err", "Hors ligne"); }
+}
+
+// Ensure today's todo list exists and includes all recurring templates
+function ensureToday() {
+  const t = todayStr();
+  if (!data.todosByDate[t]) {
+    data.todosByDate[t] = [];
+    // Report des tâches ponctuelles non terminées du dernier jour connu
+    const prevKeys = Object.keys(data.todosByDate).filter(k => k < t).sort();
+    const prevKey = prevKeys[prevKeys.length - 1];
+    if (prevKey) {
+      data.todosByDate[prevKey].forEach(item => {
+        if (!item.done && !item.recurring) {
+          data.todosByDate[t].push({ id: uid(), text: item.text, done: false, recurring: false, carried: true });
+        }
+      });
+    }
+  }
+  const list = data.todosByDate[t];
+  data.recurring.forEach(r => {
+    if (!list.some(x => x.recId === r.id)) {
+      list.push({ id: uid(), recId: r.id, text: r.text, done: false, recurring: true, qtyInput: !!r.qtyInput, unit: r.unit || "" });
+    }
+  });
+  // sync recurring text changes / removals
+  for (let i = list.length - 1; i >= 0; i--) {
+    const item = list[i];
+    if (item.recurring) {
+      const src = data.recurring.find(r => r.id === item.recId);
+      if (!src) { if (!item.done) list.splice(i, 1); }
+      else { item.text = src.text; item.qtyInput = !!src.qtyInput; item.unit = src.unit || ""; }
+    }
+  }
+  data.lastSeen = t;
+  save();
+}
+
+/* ---------- LIENS TO-DO → OBJECTIFS HEBDO ---------- */
+let linkedEls = [];
+
+// Dates (YYYY-MM-DD) de lundi jusqu'à aujourd'hui, semaine en cours (heure de Bruxelles)
+function weekDates() {
+  const [y, m, d] = todayStr().split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  let dow = base.getUTCDay(); dow = dow === 0 ? 7 : dow; // 1=lun..7=dim
+  const dates = [];
+  for (let i = dow - 1; i >= 0; i--) dates.push(new Date(base.getTime() - i * 864e5).toISOString().slice(0, 10));
+  return dates;
+}
+function linkedProgress(link) {
+  const m = (link.match || "").toLowerCase();
+  let checks = 0, units = 0;
+  weekDates().forEach(k => (data.todosByDate[k] || []).forEach(it => {
+    if (it.done && it.text.toLowerCase().includes(m)) {
+      checks++;
+      // quantité saisie manuellement si présente, sinon valeur par défaut de la coche
+      units += (it.qty != null ? it.qty : (link.perCheck || 1));
+    }
+  }));
+  return { checks, units, pct: Math.min(100, Math.round(units / link.target * 100)) };
+}
+function updateLinkedObjectives() {
+  const cats = new Set();
+  linkedEls.forEach(({ o, el, catId }) => {
+    const info = linkedProgress(o.link);
+    o.progress = info.pct;
+    const bar = el.querySelector(".bar > span");
+    const pct = el.querySelector(".obj-pct");
+    const meta = el.querySelector(".link-meta");
+    if (bar) bar.style.width = info.pct + "%";
+    if (pct) pct.textContent = info.pct + "%";
+    if (meta) meta.textContent = `🔗 Auto · ${info.units}/${o.link.target}${o.link.unit ? " " + o.link.unit : ""} cette semaine`;
+    cats.add(catId);
+  });
+  cats.forEach(catId => {
+    const card = [...document.querySelectorAll(".card")].find(c => c.dataset.cat === catId);
+    if (!card) return;
+    const items = data.objectives[catId] || [];
+    const avg = items.length ? Math.round(items.reduce((s, x) => s + (+x.progress || 0), 0) / items.length) : 0;
+    const span = card.querySelector("h2 span:last-child");
+    if (span) span.textContent = "moy. " + avg + "%";
+  });
+  if (linkedEls.length) save();
+}
+
+/* ---------- RENDER OBJECTIVES ---------- */
+function renderObjectives() {
+  linkedEls = [];
+  const wrap = document.getElementById("obj-cats");
+  wrap.innerHTML = "";
+  CATS.forEach(cat => {
+    const items = data.objectives[cat.id] || [];
+    const card = document.createElement("div");
+    card.className = "card";
+    card.dataset.cat = cat.id;
+    const avg = items.length ? Math.round(items.reduce((s, o) => s + (+o.progress || 0), 0) / items.length) : 0;
+    card.innerHTML = `
+      <h2><span class="dot" style="background:${cat.color}"></span>${cat.label} <span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">moy. ${avg}%</span></h2>
+      <div class="sub">${items.length} objectif${items.length > 1 ? "s" : ""}</div>
+      <div class="obj-holder"></div>
+      <div class="addrow">
+        <input type="text" placeholder="Nouvel objectif...">
+        <button class="btn">+ Ajouter</button>
+      </div>`;
+    const holder = card.querySelector(".obj-holder");
+    if (!items.length) holder.innerHTML = '<div class="empty">Aucun objectif. Ajoute-en un ci-dessous.</div>';
+    items.forEach(o => holder.appendChild(objEl(cat.id, o)));
+    const inp = card.querySelector("input");
+    const addBtn = card.querySelector(".btn");
+    const add = () => {
+      const v = inp.value.trim();
+      if (!v) return;
+      data.objectives[cat.id].push({ id: uid(), title: v, note: "", progress: 0 });
+      save(); renderObjectives();
+    };
+    addBtn.onclick = add;
+    inp.onkeydown = e => { if (e.key === "Enter") add(); };
+
+    // Dans le bloc "Objectifs quotidiens", afficher aussi la to-do du jour
+    if (cat.id === "daily") {
+      const td = document.createElement("div");
+      td.innerHTML = `
+        <div class="sec-title" style="margin-top:18px">✅ Ma to-do du jour</div>
+        <div class="js-todo-holder"></div>
+        <div class="addrow">
+          <input type="text" placeholder="Nouvelle tâche du jour...">
+          <button class="btn">+ Ajouter</button>
+        </div>`;
+      const tinp = td.querySelector("input");
+      const tbtn = td.querySelector(".btn");
+      const addT = () => { addTodoText(tinp.value); tinp.value = ""; };
+      tbtn.onclick = addT;
+      tinp.onkeydown = e => { if (e.key === "Enter") addT(); };
+      card.appendChild(td);
+    }
+    wrap.appendChild(card);
+  });
+  populateTodoHolders();
+  updateStats();
+  updateLinkedObjectives();
+}
+
+function objEl(catId, o) {
+  const el = document.createElement("div");
+  el.className = "obj";
+  if (o.link) {
+    const info = linkedProgress(o.link);
+    o.progress = info.pct;
+    el.innerHTML = `
+      <div class="obj-head">
+        <div style="flex:1"><div class="obj-title" contenteditable="true" spellcheck="false"></div></div>
+        <span class="obj-pct">${info.pct}%</span>
+        <button class="mini del" title="Supprimer">✕</button>
+      </div>
+      <div class="bar"><span style="width:${info.pct}%"></span></div>
+      <div class="obj-note link-meta">🔗 Auto · ${info.units}/${o.link.target}${o.link.unit ? " " + o.link.unit : ""} cette semaine</div>`;
+    const titleEl = el.querySelector(".obj-title");
+    titleEl.textContent = o.title;
+    titleEl.onblur = () => { o.title = titleEl.textContent.trim() || o.title; titleEl.textContent = o.title; save(); };
+    titleEl.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); titleEl.blur(); } };
+    el.querySelector(".del").onclick = () => {
+      data.objectives[catId] = data.objectives[catId].filter(x => x.id !== o.id);
+      save(); renderObjectives();
+    };
+    linkedEls.push({ o, el, catId });
+    return el;
+  }
+  el.innerHTML = `
+    <div class="obj-head">
+      <div style="flex:1">
+        <div class="obj-title" contenteditable="true" spellcheck="false"></div>
+        ${o.note ? `<div class="obj-note">${escapeHtml(o.note)}</div>` : ""}
+      </div>
+      <span class="obj-pct">${o.progress}%</span>
+      <button class="mini del" title="Supprimer">✕</button>
+    </div>
+    <div class="bar"><span style="width:${o.progress}%"></span></div>
+    <div class="obj-ctrl">
+      <button class="mini" data-d="-10">−</button>
+      <input type="range" min="0" max="100" step="5" value="${o.progress}">
+      <button class="mini" data-d="10">+</button>
+    </div>`;
+  const titleEl = el.querySelector(".obj-title");
+  titleEl.textContent = o.title;
+  titleEl.onblur = () => { o.title = titleEl.textContent.trim() || o.title; titleEl.textContent = o.title; save(); };
+  titleEl.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); titleEl.blur(); } };
+  const range = el.querySelector("input[type=range]");
+  const pct = el.querySelector(".obj-pct");
+  const barFill = el.querySelector(".bar > span");
+  const apply = v => {
+    v = Math.max(0, Math.min(100, v));
+    o.progress = v; range.value = v; pct.textContent = v + "%"; barFill.style.width = v + "%";
+    save();
+    // refresh category avg header
+    const avgSpan = el.closest(".card").querySelector("h2 span:last-child");
+    const items = data.objectives[catId];
+    const avg = items.length ? Math.round(items.reduce((s, x) => s + (+x.progress || 0), 0) / items.length) : 0;
+    if (avgSpan) avgSpan.textContent = "moy. " + avg + "%";
+  };
+  range.oninput = () => apply(+range.value);
+  el.querySelectorAll(".mini[data-d]").forEach(b => b.onclick = () => apply(o.progress + (+b.dataset.d)));
+  el.querySelector(".del").onclick = () => {
+    data.objectives[catId] = data.objectives[catId].filter(x => x.id !== o.id);
+    save(); renderObjectives();
+  };
+  return el;
+}
+
+/* ---------- RENDER TODOS ---------- */
+function todoItemEl(item) {
+  const el = document.createElement("div");
+  el.className = "todo" + (item.done ? " done" : "");
+  const tag = item.recurring
+    ? '<span class="todo-tag tag-rec">récurrent</span>'
+    : (item.carried ? '<span class="todo-tag tag-carry">reporté</span>' : '<span class="todo-tag tag-one">ponctuel</span>');
+  const qtyLabel = (item.done && item.qty != null)
+    ? ` <span style="color:var(--cyan);font-weight:600">· ${item.qty}${item.unit ? " " + item.unit : ""}</span>` : "";
+  const qtyBox = (item.qtyInput && !item.done)
+    ? `<input type="number" class="qty-inp" min="0" placeholder="${item.unit || "nb"}">` : "";
+  el.innerHTML = `
+    <button class="check ${item.done ? "on" : ""}"></button>
+    <span class="todo-text">${escapeHtml(item.text)}${qtyLabel}</span>
+    ${qtyBox}
+    ${tag}
+    ${item.recurring ? "" : '<button class="mini del" title="Supprimer">✕</button>'}`;
+  el.querySelector(".check").onclick = () => {
+    if (item.qtyInput) {
+      if (!item.done) item.done = true;        // coche = fait (quantité par défaut si non saisie)
+      else { item.done = false; item.qty = null; }
+    } else item.done = !item.done;
+    save(); renderTodos();
+  };
+  const qi = el.querySelector(".qty-inp");
+  if (qi) {
+    const commit = () => {
+      const v = parseInt(qi.value, 10);
+      if (!isNaN(v) && v >= 0) { item.qty = v; item.done = true; save(); renderTodos(); }
+    };
+    qi.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); commit(); } };
+    qi.onblur = commit;
+  }
+  const del = el.querySelector(".del");
+  if (del) del.onclick = () => {
+    const t = todayStr();
+    data.todosByDate[t] = (data.todosByDate[t] || []).filter(x => x.id !== item.id);
+    save(); renderTodos();
+  };
+  return el;
+}
+
+function renderTodoList(holder) {
+  const list = data.todosByDate[todayStr()] || [];
+  holder.innerHTML = "";
+  if (!list.length) { holder.innerHTML = '<div class="empty">Aucune tâche aujourd\'hui. Ajoute-en une ou crée des récurrentes.</div>'; return; }
+  // undone before done; recurring first, then reportées, then ponctuelles
+  const sorted = [...list].sort((a, b) => (a.done - b.done) || (b.recurring - a.recurring) || (b.carried - a.carried));
+  sorted.forEach(item => holder.appendChild(todoItemEl(item)));
+}
+
+function populateTodoHolders() {
+  ensureToday();
+  document.querySelectorAll(".js-todo-holder").forEach(renderTodoList);
+}
+
+function renderTodos() {
+  populateTodoHolders();
+  renderRecurring();
+  updateStats();
+  updateLinkedObjectives();
+}
+
+function renderRecurring() {
+  const holder = document.getElementById("rec-list");
+  holder.innerHTML = "";
+  if (!data.recurring.length) holder.innerHTML = '<div class="empty">Aucune tâche récurrente.</div>';
+  data.recurring.forEach(r => {
+    const el = document.createElement("div");
+    el.className = "todo";
+    el.innerHTML = `
+      <span class="todo-text" contenteditable="true" spellcheck="false"></span>
+      <span class="todo-tag tag-rec">récurrent</span>
+      <button class="mini del" title="Supprimer">✕</button>`;
+    const txt = el.querySelector(".todo-text");
+    txt.textContent = r.text;
+    txt.onblur = () => { r.text = txt.textContent.trim() || r.text; txt.textContent = r.text; save(); renderTodos(); };
+    txt.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); txt.blur(); } };
+    el.querySelector(".del").onclick = () => {
+      data.recurring = data.recurring.filter(x => x.id !== r.id);
+      save(); renderTodos();
+    };
+    holder.appendChild(el);
+  });
+}
+
+function updateStats() {
+  const t = todayStr();
+  const list = data.todosByDate[t] || [];
+  const done = list.filter(x => x.done).length;
+  const total = list.length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById("t-done").textContent = done;
+  document.getElementById("t-total").textContent = total;
+  document.getElementById("t-pct").textContent = pct + "%";
+  document.getElementById("t-streak").textContent = computeStreak();
+}
+
+function computeStreak() {
+  let streak = 0;
+  const d = new Date();
+  for (let i = 0; i < 365; i++) {
+    const key = dateKey(new Date(d.getTime() - i * 864e5));
+    const list = data.todosByDate[key];
+    if (!list || !list.length) { if (i === 0) continue; else break; }
+    const pct = list.filter(x => x.done).length / list.length;
+    if (pct >= 1) streak++;
+    else if (i === 0) continue; // today not done yet, don't break
+    else break;
+  }
+  return streak;
+}
+
+/* ---------- CHARTS ---------- */
+let chartObj, chartTodo;
+function renderCharts() {
+  const objAvgs = CATS.map(c => {
+    const items = data.objectives[c.id] || [];
+    return items.length ? Math.round(items.reduce((s, o) => s + (+o.progress || 0), 0) / items.length) : 0;
+  });
+  const overall = Math.round(objAvgs.reduce((a, b) => a + b, 0) / (objAvgs.length || 1));
+  document.getElementById("v-obj").textContent = overall + "%";
+  const totalObj = CATS.reduce((s, c) => s + (data.objectives[c.id] || []).length, 0);
+  document.getElementById("v-count").textContent = totalObj;
+
+  // last 14 days completion
+  const labels = [], vals = [];
+  let sum = 0, cnt = 0;
+  for (let i = 13; i >= 0; i--) {
+    const dt = new Date(Date.now() - i * 864e5);
+    const key = dateKey(dt);
+    labels.push(dt.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: TZ }));
+    const list = data.todosByDate[key];
+    if (list && list.length) {
+      const p = Math.round(list.filter(x => x.done).length / list.length * 100);
+      vals.push(p); sum += p; cnt++;
+    } else vals.push(0);
+  }
+  document.getElementById("v-week").textContent = (cnt ? Math.round(sum / cnt) : 0) + "%";
+
+  const gridC = "#33235f", tickC = "#9B8FC7";
+  if (chartObj) chartObj.destroy();
+  chartObj = new Chart(document.getElementById("chart-obj"), {
+    type: "bar",
+    data: { labels: ["Quotidien", "Hebdo", "Mensuel", "Annuel"], datasets: [{ data: objAvgs, backgroundColor: CATS.map(c => c.color), borderRadius: 8, maxBarThickness: 60 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100, ticks: { color: tickC, callback: v => v + "%" }, grid: { color: gridC } }, x: { ticks: { color: tickC }, grid: { display: false } } } }
+  });
+  if (chartTodo) chartTodo.destroy();
+  chartTodo = new Chart(document.getElementById("chart-todo"), {
+    type: "line",
+    data: { labels, datasets: [{ data: vals, borderColor: "#67E8F9", backgroundColor: "rgba(103,232,249,.12)", fill: true, tension: .35, pointRadius: 3, pointBackgroundColor: "#A78BFA" }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100, ticks: { color: tickC, callback: v => v + "%" }, grid: { color: gridC } }, x: { ticks: { color: tickC, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } } } }
+  });
+  renderHeatmap();
+  renderWeeklyRecap();
+}
+
+/* ---------- TABS ---------- */
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById(tab.dataset.tab).classList.add("active");
+    if (tab.dataset.tab === "vue") renderCharts();
+    if (tab.dataset.tab === "sport") renderSport();
+    if (tab.dataset.tab === "sante") renderHealth();
+    if (tab.dataset.tab === "finances") renderFinances();
+  };
+});
+
+/* ---------- ADD HANDLERS ---------- */
+function addTodoText(v) {
+  v = (v || "").trim(); if (!v) return;
+  ensureToday();
+  data.todosByDate[todayStr()].push({ id: uid(), text: v, done: false, recurring: false });
+  save(); renderTodos();
+}
+function addTodo() {
+  const inp = document.getElementById("todo-input");
+  addTodoText(inp.value); inp.value = "";
+}
+document.getElementById("add-todo").onclick = addTodo;
+document.getElementById("todo-input").onkeydown = e => { if (e.key === "Enter") addTodo(); };
+
+function addRec() {
+  const inp = document.getElementById("rec-input");
+  const v = inp.value.trim(); if (!v) return;
+  data.recurring.push({ id: uid(), text: v });
+  inp.value = ""; save(); renderTodos();
+}
+document.getElementById("add-rec").onclick = addRec;
+document.getElementById("rec-input").onkeydown = e => { if (e.key === "Enter") addRec(); };
+
+document.getElementById("reset-day").onclick = () => {
+  const list = data.todosByDate[todayStr()] || [];
+  list.forEach(x => x.done = false); save(); renderTodos();
+};
+
+/* ---------- DATA IMPORT/EXPORT/WIPE ---------- */
+document.getElementById("export").onclick = () => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "dashboard-" + todayStr() + ".json";
+  a.click();
+};
+document.getElementById("import").onclick = () => document.getElementById("import-file").click();
+document.getElementById("import-file").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try { data = JSON.parse(r.result); save(); initAll(); } catch (err) { alert("Fichier invalide"); } };
+  r.readAsText(f);
+};
+document.getElementById("wipe").onclick = () => {
+  if (confirm("Tout effacer et repartir de zéro ?")) { data = seed(); save(); initAll(); }
+};
+
+function escapeHtml(s) { return (s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+/* ---------- SPORT ---------- */
+let chartSport;
+function ensureSport() {
+  if (!data.sport) data.sport = defaultSport();
+  if (!data.sport.exercises) data.sport.exercises = [];
+  if (!data.sport.sessions) data.sport.sessions = [];
+}
+
+function renderSport() {
+  ensureSport();
+  renderSessions();
+  renderExList();
+  renderSportStats();
+  fillChartEx();
+  renderSportChart();
+}
+
+function renderSessions() {
+  const holder = document.getElementById("session-list");
+  holder.innerHTML = "";
+  const sessions = [...data.sport.sessions].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  if (!sessions.length) { holder.innerHTML = '<div class="empty">Aucune séance. Clique « ＋ Nouvelle séance ».</div>'; return; }
+  sessions.forEach(s => holder.appendChild(sessionEl(s)));
+}
+
+function sessionEl(s) {
+  const el = document.createElement("div");
+  el.className = "obj";
+  el.innerHTML = `
+    <div class="obj-head">
+      <input type="date" class="date-inp" value="${s.date || ""}">
+      <button class="mini del" title="Supprimer la séance">✕</button>
+    </div>
+    <div class="ex-grid"></div>`;
+  const dateInp = el.querySelector(".date-inp");
+  dateInp.onchange = () => { if (dateInp.value) { s.date = dateInp.value; save(); renderSport(); } };
+  el.querySelector(".del").onclick = () => {
+    if (confirm("Supprimer cette séance ?")) { data.sport.sessions = data.sport.sessions.filter(x => x.id !== s.id); save(); renderSport(); }
+  };
+  const grid = el.querySelector(".ex-grid");
+  data.sport.exercises.forEach(ex => {
+    const f = document.createElement("div");
+    f.className = "ex-field";
+    const val = (s.values && s.values[ex.id] != null) ? s.values[ex.id] : "";
+    f.innerHTML = `<label>${escapeHtml(ex.name)} <span class="u">(${ex.unit})</span></label>
+      <input type="number" min="0" step="${ex.unit === "kg" ? "0.5" : "1"}" value="${val}" placeholder="—">`;
+    const inp = f.querySelector("input");
+    inp.onchange = () => {
+      s.values = s.values || {};
+      const v = parseFloat(inp.value);
+      if (isNaN(v)) delete s.values[ex.id]; else s.values[ex.id] = v;
+      save(); renderSportStats(); renderSportChart();
+    };
+    grid.appendChild(f);
+  });
+  return el;
+}
+
+function renderExList() {
+  const holder = document.getElementById("ex-list");
+  holder.innerHTML = "";
+  data.sport.exercises.forEach(ex => {
+    const el = document.createElement("div");
+    el.className = "ex-row";
+    el.innerHTML = `
+      <span class="todo-text" contenteditable="true" spellcheck="false" style="flex:1"></span>
+      <span class="todo-tag ${ex.unit === "kg" ? "tag-one" : "tag-rec"}">${ex.unit}</span>
+      <button class="mini del" title="Supprimer">✕</button>`;
+    const t = el.querySelector(".todo-text");
+    t.textContent = ex.name;
+    t.onblur = () => { ex.name = t.textContent.trim() || ex.name; t.textContent = ex.name; save(); renderSport(); };
+    t.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); t.blur(); } };
+    el.querySelector(".del").onclick = () => {
+      if (confirm("Supprimer l'exercice « " + ex.name + " » ?")) { data.sport.exercises = data.sport.exercises.filter(x => x.id !== ex.id); save(); renderSport(); }
+    };
+    holder.appendChild(el);
+  });
+}
+
+function renderSportStats() {
+  const S = data.sport.sessions;
+  const month = todayStr().slice(0, 7);
+  const wk = weekDates();
+  document.getElementById("sport-stats").innerHTML = `
+    <div class="stat"><div class="num">${S.length}</div><div class="lbl">Séances au total</div></div>
+    <div class="stat"><div class="num">${S.filter(s => (s.date || "").slice(0, 7) === month).length}</div><div class="lbl">Ce mois-ci</div></div>
+    <div class="stat"><div class="num">${S.filter(s => wk.includes(s.date)).length}</div><div class="lbl">Cette semaine</div></div>`;
+}
+
+function fillChartEx() {
+  const sel = document.getElementById("chart-ex");
+  const prev = sel.value;
+  sel.innerHTML = "";
+  data.sport.exercises.forEach(ex => {
+    const o = document.createElement("option");
+    o.value = ex.id; o.textContent = ex.name;
+    sel.appendChild(o);
+  });
+  if (prev && data.sport.exercises.some(e => e.id === prev)) sel.value = prev;
+}
+
+function renderSportChart() {
+  const sel = document.getElementById("chart-ex");
+  const exId = sel.value;
+  const ex = data.sport.exercises.find(e => e.id === exId);
+  const pts = data.sport.sessions
+    .filter(s => s.values && s.values[exId] != null)
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const labels = pts.map(p => p.date.split("-").reverse().slice(0, 2).join("/"));
+  const vals = pts.map(p => p.values[exId]);
+  const info = document.getElementById("sport-record");
+  if (info) {
+    if (vals.length) info.textContent = `Record : ${Math.max(...vals)} ${ex ? ex.unit : ""} · Dernier : ${vals[vals.length - 1]} ${ex ? ex.unit : ""}`;
+    else info.textContent = "Aucune donnée pour cet exercice — saisis une valeur dans une séance.";
+  }
+  const gridC = "#33235f", tickC = "#9B8FC7";
+  if (chartSport) chartSport.destroy();
+  chartSport = new Chart(document.getElementById("chart-sport"), {
+    type: "line",
+    data: { labels, datasets: [{ label: ex ? ex.name : "", data: vals, borderColor: "#A78BFA", backgroundColor: "rgba(139,92,246,.14)", fill: true, tension: .3, pointRadius: 4, pointBackgroundColor: "#67E8F9" }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { color: tickC }, grid: { color: gridC } }, x: { ticks: { color: tickC, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } } } }
+  });
+}
+
+document.getElementById("add-session").onclick = () => {
+  ensureSport();
+  data.sport.sessions.unshift({ id: uid(), date: todayStr(), values: {} });
+  save(); renderSport();
+};
+document.getElementById("add-ex").onclick = () => {
+  const inp = document.getElementById("ex-input");
+  const unit = document.getElementById("ex-unit").value;
+  const v = inp.value.trim(); if (!v) return;
+  ensureSport();
+  data.sport.exercises.push({ id: uid(), name: v, unit });
+  inp.value = ""; save(); renderSport();
+};
+document.getElementById("ex-input").onkeydown = e => { if (e.key === "Enter") document.getElementById("add-ex").click(); };
+document.getElementById("chart-ex").onchange = renderSportChart;
+
+/* ---------- SANTÉ ---------- */
+const FOODS = {
+  "Mélange quinoa courgettes carottes bio Carrefour (100g)": 120,
+  "Haché spaghetti bio Carrefour (100g)": 200,
+  "Petits pois très fins bio Carrefour (100g)": 66,
+  "Carottes en rondelles bio Carrefour (100g)": 37,
+  "Skyr nature Arla (100g)": 60,
+  "Skyr noix de coco Arla (100g)": 73,
+};
+let chartWeight;
+
+function ensureHealth() {
+  if (!data.health) data.health = defaultHealth();
+  const h = data.health;
+  h.profile = h.profile || { sex: "h", age: null, height: null, activity: "moderate", goal: "lose" };
+  h.weightByDate = h.weightByDate || {};
+  h.nutritionByDate = h.nutritionByDate || {};
+  h.customFoods = h.customFoods || {};
+}
+
+function latestWeight() {
+  const keys = Object.keys(data.health.weightByDate).sort();
+  return keys.length ? data.health.weightByDate[keys[keys.length - 1]] : null;
+}
+function firstWeight() {
+  const keys = Object.keys(data.health.weightByDate).sort();
+  return keys.length ? data.health.weightByDate[keys[0]] : null;
+}
+function calorieTarget() {
+  const p = data.health.profile, w = latestWeight();
+  if (!w || !p.age || !p.height) return null;
+  const bmr = 10 * w + 6.25 * p.height - 5 * p.age + (p.sex === "f" ? -161 : 5);
+  const fac = { sedentary: 1.2, light: 1.375, moderate: 1.55, intense: 1.725 }[p.activity] || 1.55;
+  const goal = p.goal === "lose" ? 0.85 : p.goal === "gain" ? 1.10 : 1.0;
+  return Math.round(bmr * fac * goal);
+}
+function kcalToday() {
+  return (data.health.nutritionByDate[todayStr()] || []).reduce((s, x) => s + (+x.kcal || 0), 0);
+}
+
+function renderHealth() {
+  ensureHealth();
+  const wd = document.getElementById("w-date");
+  if (!wd.value) wd.value = todayStr();
+  renderProfile();
+  renderHealthStats();
+  renderWeightChart();
+  renderFoodDB();
+  renderFoodList();
+  renderSmoking();
+  renderCheckin();
+}
+
+function renderProfile() {
+  const p = data.health.profile;
+  document.getElementById("p-sex").value = p.sex;
+  document.getElementById("p-age").value = p.age ?? "";
+  document.getElementById("p-height").value = p.height ?? "";
+  document.getElementById("p-activity").value = p.activity;
+  document.getElementById("p-goal").value = p.goal;
+  const t = calorieTarget();
+  const info = document.getElementById("target-info");
+  if (t) {
+    const goalTxt = { lose: "perte de poids", maintain: "maintien", gain: "prise de masse" }[p.goal];
+    info.textContent = `🎯 Objectif : ${t} kcal/jour (basé sur ${latestWeight()} kg, ${goalTxt})`;
+  } else {
+    info.textContent = "⚠️ Renseigne âge, taille et au moins un poids pour calculer ton objectif.";
+  }
+}
+
+function saveProfile() {
+  const p = data.health.profile;
+  p.sex = document.getElementById("p-sex").value;
+  p.age = parseInt(document.getElementById("p-age").value, 10) || null;
+  p.height = parseFloat(document.getElementById("p-height").value) || null;
+  p.activity = document.getElementById("p-activity").value;
+  p.goal = document.getElementById("p-goal").value;
+  save(); renderProfile(); renderHealthStats(); renderFoodList();
+}
+["p-sex", "p-age", "p-height", "p-activity", "p-goal"].forEach(id => {
+  document.getElementById(id).addEventListener("change", saveProfile);
+});
+
+function renderHealthStats() {
+  const cur = latestWeight(), first = firstWeight();
+  const t = calorieTarget(), eaten = kcalToday();
+  const delta = (cur != null && first != null) ? (cur - first) : null;
+  const deltaTxt = delta == null ? "" : (delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)) + " kg";
+  document.getElementById("health-stats").innerHTML = `
+    <div class="stat"><div class="num">${cur != null ? cur : "—"}</div><div class="lbl">Poids actuel (kg)${deltaTxt ? " · " + deltaTxt : ""}</div></div>
+    <div class="stat"><div class="num">${t != null ? t : "—"}</div><div class="lbl">Objectif kcal/jour</div></div>
+    <div class="stat"><div class="num">${eaten}</div><div class="lbl">Consommé aujourd'hui</div></div>
+    <div class="stat"><div class="num">${t != null ? (t - eaten) : "—"}</div><div class="lbl">Calories restantes</div></div>`;
+}
+
+function renderWeightChart() {
+  const entries = Object.keys(data.health.weightByDate).sort().map(k => ({ d: k, w: data.health.weightByDate[k] }));
+  const labels = entries.map(e => e.d.split("-").reverse().slice(0, 2).join("/"));
+  const vals = entries.map(e => e.w);
+  const gridC = "#33235f", tickC = "#9B8FC7";
+  if (chartWeight) chartWeight.destroy();
+  chartWeight = new Chart(document.getElementById("chart-weight"), {
+    type: "line",
+    data: { labels, datasets: [{ label: "Poids", data: vals, borderColor: "#67E8F9", backgroundColor: "rgba(103,232,249,.14)", fill: true, tension: .3, pointRadius: 4, pointBackgroundColor: "#A78BFA" }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { ticks: { color: tickC, callback: v => v + " kg" }, grid: { color: gridC } }, x: { ticks: { color: tickC, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } } } }
+  });
+}
+
+function renderFoodDB() {
+  const dl = document.getElementById("food-db");
+  dl.innerHTML = "";
+  const names = [...Object.keys(FOODS), ...Object.keys(data.health.customFoods || {})];
+  [...new Set(names)].forEach(name => {
+    const o = document.createElement("option");
+    o.value = name;
+    dl.appendChild(o);
+  });
+}
+function foodKcal(name) {
+  if (FOODS[name] != null) return FOODS[name];
+  if (data.health.customFoods && data.health.customFoods[name] != null) return data.health.customFoods[name];
+  return null;
+}
+
+function renderFoodList() {
+  const holder = document.getElementById("food-list");
+  const list = data.health.nutritionByDate[todayStr()] || [];
+  holder.innerHTML = "";
+  if (!list.length) holder.innerHTML = '<div class="empty">Aucun aliment enregistré aujourd\'hui.</div>';
+  list.forEach(it => {
+    const el = document.createElement("div");
+    el.className = "todo";
+    el.innerHTML = `
+      <span class="todo-text">${escapeHtml(it.name)}</span>
+      <span class="todo-tag tag-one">${it.kcal} kcal</span>
+      <button class="mini del" title="Supprimer">✕</button>`;
+    el.querySelector(".del").onclick = () => {
+      data.health.nutritionByDate[todayStr()] = list.filter(x => x.id !== it.id);
+      save(); renderFoodList(); renderHealthStats(); updateKcalBar();
+    };
+    holder.appendChild(el);
+  });
+  updateKcalBar();
+}
+
+function updateKcalBar() {
+  const t = calorieTarget(), eaten = kcalToday();
+  const sub = document.getElementById("kcal-sub");
+  const bar = document.getElementById("kcal-bar");
+  if (t) {
+    const pct = Math.round(eaten / t * 100);
+    sub.textContent = `${eaten} / ${t} kcal (${pct}%)`;
+    bar.style.width = Math.min(100, pct) + "%";
+    bar.style.background = eaten > t ? "linear-gradient(90deg,#FB7185,#F59E0B)" : "var(--grad)";
+  } else {
+    sub.textContent = `${eaten} kcal consommées · définis ton objectif dans le profil`;
+    bar.style.width = "0%";
+  }
+}
+
+function addFood() {
+  ensureHealth();
+  const nameEl = document.getElementById("food-name");
+  const kcalEl = document.getElementById("food-kcal");
+  const portionsEl = document.getElementById("food-portions");
+  const name = nameEl.value.trim();
+  if (!name) return;
+  let kcal = parseInt(kcalEl.value, 10);
+  if (isNaN(kcal)) { const k = foodKcal(name); kcal = k != null ? k : 0; }
+  const portions = parseInt(portionsEl.value, 10);
+  const per = (portions && portions > 1) ? Math.round(kcal / portions) : kcal;
+  // Mémorise les plats persos (hors base officielle) pour les réutiliser
+  if (FOODS[name] == null && per > 0) data.health.customFoods[name] = per;
+  const t = todayStr();
+  data.health.nutritionByDate[t] = data.health.nutritionByDate[t] || [];
+  data.health.nutritionByDate[t].push({ id: uid(), name, kcal: per });
+  nameEl.value = ""; kcalEl.value = ""; portionsEl.value = "";
+  save(); renderFoodDB(); renderFoodList(); renderHealthStats();
+}
+document.getElementById("food-name").addEventListener("input", () => {
+  const name = document.getElementById("food-name").value.trim();
+  const kcalEl = document.getElementById("food-kcal");
+  const k = foodKcal(name);
+  if (k != null && !kcalEl.value) kcalEl.placeholder = k + " kcal";
+});
+document.getElementById("food-add").onclick = addFood;
+document.getElementById("food-name").onkeydown = e => { if (e.key === "Enter") addFood(); };
+document.getElementById("food-kcal").onkeydown = e => { if (e.key === "Enter") addFood(); };
+document.getElementById("food-portions").onkeydown = e => { if (e.key === "Enter") addFood(); };
+
+document.getElementById("w-add").onclick = () => {
+  ensureHealth();
+  const d = document.getElementById("w-date").value || todayStr();
+  const v = parseFloat(document.getElementById("w-val").value);
+  if (isNaN(v) || v <= 0) return;
+  data.health.weightByDate[d] = v;
+  document.getElementById("w-val").value = "";
+  save(); renderHealth();
+};
+document.getElementById("w-val").onkeydown = e => { if (e.key === "Enter") document.getElementById("w-add").click(); };
+
+/* ---------- ARRÊT CIGARETTE ---------- */
+function renderSmoking() {
+  const s = data.health.smoking;
+  document.getElementById("sm-date").value = s.quitDate || "";
+  document.getElementById("sm-price").value = s.pricePerPack ?? "";
+  document.getElementById("sm-perday").value = s.cigsPerDay ?? "";
+  document.getElementById("sm-perpack").value = s.cigsPerPack ?? "";
+  const box = document.getElementById("smoke-stats");
+  if (!s.quitDate) {
+    box.innerHTML = '<div class="empty" style="grid-column:1/-1">Renseigne ta date d\'arrêt ci-dessous (ou clique « J\'ai arrêté aujourd\'hui »).</div>';
+    return;
+  }
+  const [y, m, d] = s.quitDate.split("-").map(Number);
+  const start = new Date(Date.UTC(y, m - 1, d));
+  const [ty, tm, td] = todayStr().split("-").map(Number);
+  const today = new Date(Date.UTC(ty, tm - 1, td));
+  const days = Math.max(0, Math.floor((today - start) / 864e5));
+  const perDayPacks = (s.cigsPerDay || 0) / (s.cigsPerPack || 20);
+  const saved = Math.round(days * perDayPacks * (s.pricePerPack || 0));
+  const avoided = days * (s.cigsPerDay || 0);
+  box.innerHTML = `
+    <div class="recap-item"><div class="rv">${days}</div><div class="rl">jours sans fumer</div></div>
+    <div class="recap-item"><div class="rv">${saved} €</div><div class="rl">argent économisé</div></div>
+    <div class="recap-item"><div class="rv">${avoided}</div><div class="rl">cigarettes évitées</div></div>`;
+}
+function saveSmoking() {
+  const s = data.health.smoking;
+  s.quitDate = document.getElementById("sm-date").value || null;
+  s.pricePerPack = parseFloat(document.getElementById("sm-price").value) || 0;
+  s.cigsPerDay = parseInt(document.getElementById("sm-perday").value, 10) || 0;
+  s.cigsPerPack = parseInt(document.getElementById("sm-perpack").value, 10) || 20;
+  save(); renderSmoking();
+}
+["sm-date", "sm-price", "sm-perday", "sm-perpack"].forEach(id =>
+  document.getElementById(id).addEventListener("change", saveSmoking));
+document.getElementById("sm-reset").onclick = () => {
+  data.health.smoking.quitDate = todayStr();
+  save(); renderSmoking();
+};
+
+/* ---------- CHECK-IN QUOTIDIEN ---------- */
+let chartCheckin;
+function renderCheckin() {
+  const t = todayStr();
+  const c = data.health.checkinByDate[t] || {};
+  const moodBox = document.getElementById("ci-mood");
+  const enBox = document.getElementById("ci-energy");
+  const moodIcons = ["😞", "😕", "😐", "🙂", "😄"];
+  const enIcons = ["🪫", "🔋", "⚡", "💪", "🚀"];
+  moodBox.innerHTML = ""; enBox.innerHTML = "";
+  moodIcons.forEach((ic, i) => {
+    const b = document.createElement("button");
+    b.textContent = ic;
+    if (c.mood === i + 1) b.classList.add("on");
+    b.onclick = () => setCheckin("mood", i + 1);
+    moodBox.appendChild(b);
+  });
+  enIcons.forEach((ic, i) => {
+    const b = document.createElement("button");
+    b.textContent = ic;
+    if (c.energy === i + 1) b.classList.add("on");
+    b.onclick = () => setCheckin("energy", i + 1);
+    enBox.appendChild(b);
+  });
+  const sleepEl = document.getElementById("ci-sleep");
+  sleepEl.value = c.sleep != null ? c.sleep : "";
+  sleepEl.onchange = () => {
+    const v = parseFloat(sleepEl.value);
+    setCheckin("sleep", isNaN(v) ? null : v);
+  };
+  renderCheckinChart();
+}
+function setCheckin(key, val) {
+  const t = todayStr();
+  data.health.checkinByDate[t] = data.health.checkinByDate[t] || {};
+  if (val == null) delete data.health.checkinByDate[t][key];
+  else data.health.checkinByDate[t][key] = val;
+  save(); renderCheckin();
+}
+function renderCheckinChart() {
+  const labels = [], mood = [], energy = [];
+  for (let i = 13; i >= 0; i--) {
+    const dt = new Date(Date.now() - i * 864e5);
+    const key = dateKey(dt);
+    labels.push(dt.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: TZ }));
+    const c = data.health.checkinByDate[key] || {};
+    mood.push(c.mood ?? null);
+    energy.push(c.energy ?? null);
+  }
+  const tickC = "#9B8FC7", gridC = "#33235f";
+  if (chartCheckin) chartCheckin.destroy();
+  chartCheckin = new Chart(document.getElementById("chart-checkin"), {
+    type: "line",
+    data: { labels, datasets: [
+      { label: "Humeur", data: mood, borderColor: "#A78BFA", backgroundColor: "transparent", tension: .3, pointRadius: 3, spanGaps: true },
+      { label: "Énergie", data: energy, borderColor: "#67E8F9", backgroundColor: "transparent", tension: .3, pointRadius: 3, spanGaps: true },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tickC, boxWidth: 12 } } },
+      scales: { y: { min: 0, max: 5, ticks: { color: tickC, stepSize: 1 }, grid: { color: gridC } }, x: { ticks: { color: tickC, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }, grid: { display: false } } } }
+  });
+}
+
+/* ---------- FINANCES ---------- */
+let chartIncome;
+function ensureFinances() {
+  if (!data.finances) data.finances = defaultFinances();
+  data.finances.incomeEntries = data.finances.incomeEntries || [];
+  data.finances.debts = data.finances.debts || [];
+}
+function renderFinances() {
+  ensureFinances();
+  document.getElementById("fin-goal").value = data.finances.incomeGoal || 0;
+  const id = document.getElementById("inc-date");
+  if (!id.value) id.value = todayStr();
+  renderFinStats();
+  renderIncome();
+  renderIncomeChart();
+  renderDebts();
+}
+function monthIncome(monthKey) {
+  return data.finances.incomeEntries
+    .filter(e => (e.date || "").slice(0, 7) === monthKey)
+    .reduce((s, e) => s + (+e.amount || 0), 0);
+}
+function renderFinStats() {
+  const goal = data.finances.incomeGoal || 0;
+  const thisMonth = monthIncome(todayStr().slice(0, 7));
+  const totalDebt = data.finances.debts.reduce((s, d) => s + (+d.total || 0), 0);
+  const paidDebt = data.finances.debts.reduce((s, d) => s + (+d.paid || 0), 0);
+  document.getElementById("fin-stats").innerHTML = `
+    <div class="stat"><div class="num">${thisMonth} €</div><div class="lbl">Side business ce mois${goal ? " / " + goal + " €" : ""}</div></div>
+    <div class="stat"><div class="num">${paidDebt} €</div><div class="lbl">Total remboursé</div></div>
+    <div class="stat"><div class="num">${Math.max(0, totalDebt - paidDebt)} €</div><div class="lbl">Reste à rembourser</div></div>`;
+  const bar = document.getElementById("fin-month-bar");
+  const sub = document.getElementById("fin-month-sub");
+  const pct = goal ? Math.round(thisMonth / goal * 100) : 0;
+  bar.style.width = Math.min(100, pct) + "%";
+  bar.style.background = thisMonth >= goal && goal ? "linear-gradient(90deg,#34D399,#67E8F9)" : "var(--grad)";
+  sub.textContent = goal ? `${thisMonth} / ${goal} € ce mois (${pct}%)` : `${thisMonth} € ce mois · fixe un objectif`;
+}
+function renderIncome() {
+  const holder = document.getElementById("income-list");
+  const list = [...data.finances.incomeEntries].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 8);
+  holder.innerHTML = "";
+  if (!list.length) { holder.innerHTML = '<div class="empty">Aucune rentrée enregistrée.</div>'; return; }
+  list.forEach(e => {
+    const el = document.createElement("div");
+    el.className = "todo";
+    el.innerHTML = `
+      <span class="todo-text">${escapeHtml(e.label || "Revenu")} <span class="sub">· ${e.date ? e.date.split("-").reverse().slice(0, 2).join("/") : ""}</span></span>
+      <span class="todo-tag tag-rec">${e.amount} €</span>
+      <button class="mini del" title="Supprimer">✕</button>`;
+    el.querySelector(".del").onclick = () => {
+      data.finances.incomeEntries = data.finances.incomeEntries.filter(x => x.id !== e.id);
+      save(); renderFinances();
+    };
+    holder.appendChild(el);
+  });
+}
+function renderIncomeChart() {
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const dt = new Date(); dt.setMonth(dt.getMonth() - i);
+    const key = dt.toISOString().slice(0, 7);
+    months.push({ key, label: dt.toLocaleDateString("fr-FR", { month: "short" }) });
+  }
+  const vals = months.map(m => monthIncome(m.key));
+  const goal = data.finances.incomeGoal || 0;
+  const tickC = "#9B8FC7", gridC = "#33235f";
+  if (chartIncome) chartIncome.destroy();
+  chartIncome = new Chart(document.getElementById("chart-income"), {
+    type: "bar",
+    data: { labels: months.map(m => m.label), datasets: [{ data: vals, backgroundColor: vals.map(v => v >= goal && goal ? "#34D399" : "#8B5CF6"), borderRadius: 6, maxBarThickness: 40 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { color: tickC, callback: v => v + "€" }, grid: { color: gridC } }, x: { ticks: { color: tickC }, grid: { display: false } } } }
+  });
+}
+function renderDebts() {
+  const holder = document.getElementById("debt-list");
+  holder.innerHTML = "";
+  if (!data.finances.debts.length) holder.innerHTML = '<div class="empty">Aucune dette suivie.</div>';
+  data.finances.debts.forEach(d => {
+    const pct = d.total > 0 ? Math.round(d.paid / d.total * 100) : 0;
+    const el = document.createElement("div");
+    el.className = "obj";
+    el.innerHTML = `
+      <div class="obj-head">
+        <div class="obj-title" contenteditable="true" spellcheck="false" style="flex:1"></div>
+        <span class="obj-pct">${pct}%</span>
+        <button class="mini del" title="Supprimer">✕</button>
+      </div>
+      <div class="bar"><span style="width:${pct}%"></span></div>
+      <div class="obj-note">${d.paid} € / ${d.total} € remboursés</div>
+      <div class="addrow">
+        <input type="number" class="qty-inp add-pay" min="0" placeholder="+ versement €" style="width:120px">
+        <button class="btn ghost pay-btn">Ajouter</button>
+        <input type="number" class="qty-inp set-total" min="0" placeholder="total €" style="width:96px" value="${d.total || ""}">
+      </div>`;
+    const title = el.querySelector(".obj-title");
+    title.textContent = d.name;
+    title.onblur = () => { d.name = title.textContent.trim() || d.name; title.textContent = d.name; save(); };
+    title.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); title.blur(); } };
+    const pay = el.querySelector(".add-pay"), payBtn = el.querySelector(".pay-btn");
+    const doPay = () => {
+      const v = parseFloat(pay.value);
+      if (!isNaN(v) && v > 0) { d.paid = Math.min(d.total, (d.paid || 0) + v); save(); renderFinances(); }
+    };
+    payBtn.onclick = doPay;
+    pay.onkeydown = e => { if (e.key === "Enter") doPay(); };
+    const setTot = el.querySelector(".set-total");
+    setTot.onchange = () => { d.total = parseFloat(setTot.value) || 0; if (d.paid > d.total) d.paid = d.total; save(); renderFinances(); };
+    el.querySelector(".del").onclick = () => {
+      if (confirm("Supprimer « " + d.name + " » ?")) { data.finances.debts = data.finances.debts.filter(x => x.id !== d.id); save(); renderFinances(); }
+    };
+    holder.appendChild(el);
+  });
+}
+document.getElementById("fin-goal").addEventListener("change", () => {
+  data.finances.incomeGoal = parseFloat(document.getElementById("fin-goal").value) || 0;
+  save(); renderFinances();
+});
+function addIncome() {
+  ensureFinances();
+  const date = document.getElementById("inc-date").value || todayStr();
+  const label = document.getElementById("inc-label").value.trim();
+  const amount = parseFloat(document.getElementById("inc-amount").value);
+  if (isNaN(amount) || amount <= 0) return;
+  data.finances.incomeEntries.push({ id: uid(), date, label, amount });
+  document.getElementById("inc-label").value = ""; document.getElementById("inc-amount").value = "";
+  save(); renderFinances();
+}
+document.getElementById("inc-add").onclick = addIncome;
+document.getElementById("inc-amount").onkeydown = e => { if (e.key === "Enter") addIncome(); };
+document.getElementById("debt-add").onclick = () => {
+  ensureFinances();
+  const name = document.getElementById("debt-name").value.trim();
+  const total = parseFloat(document.getElementById("debt-total").value) || 0;
+  if (!name) return;
+  data.finances.debts.push({ id: uid(), name, total, paid: 0 });
+  document.getElementById("debt-name").value = ""; document.getElementById("debt-total").value = "";
+  save(); renderFinances();
+};
+
+/* ---------- HEATMAP & RÉCAP HEBDO ---------- */
+function dayCompletion(key) {
+  const list = data.todosByDate[key];
+  if (!list || !list.length) return null;
+  return list.filter(x => x.done).length / list.length;
+}
+function heatColor(r) {
+  if (r == null) return "#241650";
+  if (r === 0) return "#2c1d55";
+  if (r < 0.34) return "#3b2a6b";
+  if (r < 0.67) return "#6d4fc0";
+  if (r < 1) return "#8B5CF6";
+  return "#67E8F9";
+}
+function renderHeatmap() {
+  const box = document.getElementById("heatmap");
+  box.innerHTML = "";
+  // 12 semaines, colonnes = semaines, lignes = lun..dim
+  const today = new Date(Date.UTC(...todayStr().split("-").map((v, i) => i === 1 ? v - 1 : +v)));
+  let dow = today.getUTCDay(); dow = dow === 0 ? 7 : dow;
+  const endMonday = new Date(today.getTime() - (dow - 1) * 864e5);
+  const weeks = 12;
+  for (let w = weeks - 1; w >= 0; w--) {
+    const col = document.createElement("div");
+    col.className = "heat-col";
+    const monday = new Date(endMonday.getTime() - w * 7 * 864e5);
+    for (let dd = 0; dd < 7; dd++) {
+      const cell = document.createElement("div");
+      cell.className = "heat-cell";
+      const dt = new Date(monday.getTime() + dd * 864e5);
+      const key = dt.toISOString().slice(0, 10);
+      const r = dt > today ? null : dayCompletion(key);
+      cell.style.background = heatColor(r);
+      cell.title = key + (r == null ? " · —" : ` · ${Math.round(r * 100)}%`);
+      col.appendChild(cell);
+    }
+    box.appendChild(col);
+  }
+}
+function renderWeeklyRecap() {
+  const wk = weekDates();
+  // tâches
+  let done = 0, total = 0;
+  wk.forEach(k => { const l = data.todosByDate[k] || []; done += l.filter(x => x.done).length; total += l.length; });
+  const taskPct = total ? Math.round(done / total * 100) : 0;
+  // objectifs (moyenne globale)
+  const allObj = ["daily", "weekly", "monthly", "annual"].flatMap(c => data.objectives[c] || []);
+  const objAvg = allObj.length ? Math.round(allObj.reduce((s, o) => s + (+o.progress || 0), 0) / allObj.length) : 0;
+  // sport
+  const sessions = (data.sport && data.sport.sessions || []).filter(s => wk.includes(s.date)).length;
+  // poids
+  const wKeys = Object.keys((data.health && data.health.weightByDate) || {}).sort();
+  const inWeek = wKeys.filter(k => wk.includes(k));
+  let wTxt = "—";
+  if (inWeek.length >= 2) { const dlt = data.health.weightByDate[inWeek[inWeek.length - 1]] - data.health.weightByDate[inWeek[0]]; wTxt = (dlt > 0 ? "+" : "") + dlt.toFixed(1) + " kg"; }
+  else if (inWeek.length === 1) wTxt = data.health.weightByDate[inWeek[0]] + " kg";
+  // calories moyennes
+  let kSum = 0, kCnt = 0;
+  wk.forEach(k => { const l = (data.health && data.health.nutritionByDate[k]) || []; if (l.length) { kSum += l.reduce((s, x) => s + (+x.kcal || 0), 0); kCnt++; } });
+  const kAvg = kCnt ? Math.round(kSum / kCnt) : 0;
+  // humeur moyenne
+  let mSum = 0, mCnt = 0;
+  wk.forEach(k => { const c = (data.health && data.health.checkinByDate[k]) || {}; if (c.mood) { mSum += c.mood; mCnt++; } });
+  const mAvg = mCnt ? (mSum / mCnt).toFixed(1) + "/5" : "—";
+  // side business ce mois
+  const inc = data.finances ? monthIncome(todayStr().slice(0, 7)) : 0;
+  document.getElementById("weekly-recap").innerHTML = `
+    <div class="recap-item"><div class="rv">${taskPct}%</div><div class="rl">Tâches cochées (semaine)</div></div>
+    <div class="recap-item"><div class="rv">${objAvg}%</div><div class="rl">Progression objectifs</div></div>
+    <div class="recap-item"><div class="rv">${sessions}</div><div class="rl">Séances de sport</div></div>
+    <div class="recap-item"><div class="rv">${wTxt}</div><div class="rl">Évolution du poids</div></div>
+    <div class="recap-item"><div class="rv">${kAvg || "—"}</div><div class="rl">Calories moy./jour</div></div>
+    <div class="recap-item"><div class="rv">${mAvg}</div><div class="rl">Humeur moyenne</div></div>
+    <div class="recap-item"><div class="rv">${inc} €</div><div class="rl">Side business (mois)</div></div>`;
+}
+
+/* ---------- INIT ---------- */
+function initAll() {
+  document.getElementById("today").textContent =
+    new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  ensureToday();
+  renderObjectives();
+  renderTodos();
+  if (document.getElementById("vue").classList.contains("active")) renderCharts();
+}
+
+// Régénération automatique à minuit (heure de Bruxelles)
+let _curDay = null;
+let _midnightTimer = null;
+function startMidnightTimer() {
+  _curDay = todayStr();
+  if (_midnightTimer) clearInterval(_midnightTimer);
+  _midnightTimer = setInterval(() => {
+    const t = todayStr();
+    if (t !== _curDay) { _curDay = t; initAll(); }
+  }, 30000);
+}
+
+/* ---------- AUTH & SYNCHRONISATION ---------- */
+async function loadData() {
+  let d = null;
+  try {
+    const { data: row } = await sb.from("dashboards").select("data").eq("user_id", userId).maybeSingle();
+    if (row && row.data) d = row.data;
+  } catch (e) { /* hors ligne : on retombera sur le cache */ }
+  if (!d) d = localLoad() || seed();
+  data = normalize(d);
+  save();          // persiste la version migrée + crée la ligne cloud si absente
+  setSync("ok", "Synchronisé");
+}
+
+async function onSignedIn(session) {
+  userId = session.user.id;
+  document.getElementById("login-overlay").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  await loadData();
+  initAll();
+  startMidnightTimer();
+}
+
+function showLogin() {
+  document.getElementById("app").classList.add("hidden");
+  document.getElementById("login-overlay").classList.remove("hidden");
+}
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) onSignedIn(session);
+  else showLogin();
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" && session && !userId) onSignedIn(session);
+    if (event === "SIGNED_OUT") { userId = null; showLogin(); }
+  });
+}
+
+document.getElementById("login-btn").onclick = async () => {
+  const email = document.getElementById("login-email").value.trim();
+  const msg = document.getElementById("login-msg");
+  if (!email) { msg.className = "login-msg err"; msg.textContent = "Entre ton adresse email."; return; }
+  msg.className = "login-msg"; msg.textContent = "Envoi en cours…";
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href.split("#")[0] } });
+  if (error) { msg.className = "login-msg err"; msg.textContent = "Erreur : " + error.message; }
+  else { msg.className = "login-msg ok"; msg.textContent = "Lien envoyé ! Vérifie ta boîte mail et clique dessus."; }
+};
+document.getElementById("login-email").onkeydown = e => { if (e.key === "Enter") document.getElementById("login-btn").click(); };
+document.getElementById("logout-link").onclick = async () => { await sb.auth.signOut(); };
+
+boot();
+</script>
+</body>
+</html>
