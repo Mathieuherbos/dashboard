@@ -191,6 +191,23 @@
   #sync-badge.err .sdot { background: var(--red); }
   #sync-badge a { color: var(--violet-l); cursor: pointer; text-decoration: none; margin-left: 8px; }
   .hidden { display: none !important; }
+
+  /* ---- DAY VIEW SLOTS ---- */
+  .slot-block { background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:10px; transition:.15s; }
+  .slot-block .slot-head { font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+  .slot-block.accepting { border-color:var(--violet); background:rgba(139,92,246,.1); }
+  .slot-block.accepting .slot-head { color:var(--violet-l); }
+  .empty-slot { color:var(--muted); font-size:12px; font-style:italic; padding:4px 0; }
+  .todo.selectable { cursor:pointer; }
+  .todo.selected { border-color:var(--violet); background:rgba(139,92,246,.18); }
+
+  /* ---- WEEK VIEW ---- */
+  .week-nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:10px; }
+  .wn-title { font-size:13px; font-weight:700; color:var(--text); text-align:center; flex:1; }
+  .week-day { background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+  .week-day.today { border-color:var(--violet); }
+  .week-day-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+  .week-day-head .day-label { font-size:14px; font-weight:700; }
 </style>
 </head>
 <body>
@@ -221,6 +238,7 @@
       <button class="tab" data-tab="sante">❤️ Santé</button>
       <button class="tab" data-tab="finances">💰 Finances</button>
       <button class="tab" data-tab="vue">📊 Vue d'ensemble</button>
+      <button class="tab" data-tab="week">📅 Semaine</button>
     </div>
   </header>
 
@@ -244,7 +262,20 @@
           <div class="sub" style="margin:0">Coche au fur et à mesure. Les récurrentes reviennent chaque jour.</div></div>
           <button class="btn ghost" id="reset-day" title="Décocher tout pour aujourd'hui">↺ Reset</button>
         </div>
-        <div id="todo-list" class="js-todo-holder"></div>
+        <div class="sec-title" style="margin-top:4px;margin-bottom:8px">📋 À planifier <span id="pool-hint" style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)">— tape une tâche pour la placer dans un créneau</span></div>
+        <div id="todo-pool"></div>
+        <div class="slot-block" id="slot-matin" data-slot="matin">
+          <div class="slot-head">🌅 Matinée</div>
+          <div class="slot-items"></div>
+        </div>
+        <div class="slot-block" id="slot-apm" data-slot="apm">
+          <div class="slot-head">☀️ Après-midi</div>
+          <div class="slot-items"></div>
+        </div>
+        <div class="slot-block" id="slot-soir" data-slot="soir">
+          <div class="slot-head">🌙 Soirée</div>
+          <div class="slot-items"></div>
+        </div>
         <div class="addrow">
           <input type="text" id="todo-input" placeholder="Nouvelle tâche ponctuelle...">
           <button class="btn" id="add-todo">+ Ajouter</button>
@@ -260,6 +291,16 @@
         </div>
       </div>
     </div>
+  </section>
+
+  <!-- WEEK -->
+  <section class="panel" id="week">
+    <div class="week-nav">
+      <button class="btn ghost" id="week-prev">← Préc.</button>
+      <span class="wn-title" id="week-title"></span>
+      <button class="btn ghost" id="week-next">Suiv. →</button>
+    </div>
+    <div id="week-days"></div>
   </section>
 
   <!-- FINANCES -->
@@ -536,7 +577,7 @@ function seed() {
     finances: defaultFinances(),
     todosByDate: {},
     lastSeen: todayStr(),
-    _mig: 6,
+    _mig: 7,
   };
 }
 
@@ -619,6 +660,12 @@ function migrate(d) {
     if (!d.health.customFoods) d.health.customFoods = {};
     d._mig = 6;
   }
+  if (d._mig < 7) {
+    Object.values(d.todosByDate || {}).forEach(list => {
+      (list || []).forEach(item => { if (!('slot' in item)) item.slot = null; });
+    });
+    d._mig = 7;
+  }
   return d;
 }
 
@@ -657,7 +704,7 @@ function ensureToday() {
     if (prevKey) {
       data.todosByDate[prevKey].forEach(item => {
         if (!item.done && !item.recurring) {
-          data.todosByDate[t].push({ id: uid(), text: item.text, done: false, recurring: false, carried: true });
+          data.todosByDate[t].push({ id: uid(), text: item.text, done: false, recurring: false, carried: true, slot: null });
         }
       });
     }
@@ -665,7 +712,7 @@ function ensureToday() {
   const list = data.todosByDate[t];
   data.recurring.forEach(r => {
     if (!list.some(x => x.recId === r.id)) {
-      list.push({ id: uid(), recId: r.id, text: r.text, done: false, recurring: true, qtyInput: !!r.qtyInput, unit: r.unit || "" });
+      list.push({ id: uid(), recId: r.id, text: r.text, done: false, recurring: true, qtyInput: !!r.qtyInput, unit: r.unit || "", slot: null });
     }
   });
   // sync recurring text changes / removals
@@ -910,6 +957,7 @@ function populateTodoHolders() {
 
 function renderTodos() {
   populateTodoHolders();
+  renderDayView();
   renderRecurring();
   updateStats();
   updateLinkedObjectives();
@@ -1022,6 +1070,7 @@ document.querySelectorAll(".tab").forEach(tab => {
     if (tab.dataset.tab === "sport") renderSport();
     if (tab.dataset.tab === "sante") renderHealth();
     if (tab.dataset.tab === "finances") renderFinances();
+    if (tab.dataset.tab === "week") { weekOffset = 0; renderWeekView(); }
   };
 });
 
@@ -1029,7 +1078,7 @@ document.querySelectorAll(".tab").forEach(tab => {
 function addTodoText(v) {
   v = (v || "").trim(); if (!v) return;
   ensureToday();
-  data.todosByDate[todayStr()].push({ id: uid(), text: v, done: false, recurring: false });
+  data.todosByDate[todayStr()].push({ id: uid(), text: v, done: false, recurring: false, slot: null });
   save(); renderTodos();
 }
 function addTodo() {
@@ -1735,6 +1784,184 @@ function renderWeeklyRecap() {
     <div class="recap-item"><div class="rv">${mAvg}</div><div class="rl">Humeur moyenne</div></div>
     <div class="recap-item"><div class="rv">${inc} €</div><div class="rl">Side business (mois)</div></div>`;
 }
+
+/* ---------- DAY VIEW (CRÉNEAUX) ---------- */
+let selectedTodoId = null;
+
+function todoItemDayEl(item, inSlot) {
+  const el = document.createElement("div");
+  const isSel = item.id === selectedTodoId;
+  el.className = "todo selectable" + (item.done ? " done" : "") + (isSel ? " selected" : "");
+  el.dataset.id = item.id;
+  const tag = item.recurring
+    ? '<span class="todo-tag tag-rec">récurrent</span>'
+    : (item.carried ? '<span class="todo-tag tag-carry">reporté</span>' : '<span class="todo-tag tag-one">ponctuel</span>');
+  const qtyLabel = (item.done && item.qty != null)
+    ? ` <span style="color:var(--cyan);font-weight:600">· ${item.qty}${item.unit ? " " + item.unit : ""}</span>` : "";
+  const qtyBox = (item.qtyInput && !item.done)
+    ? `<input type="number" class="qty-inp" min="0" placeholder="${item.unit || "nb"}">` : "";
+  const unslotBtn = inSlot ? '<button class="mini todo-unslot" title="Retirer du créneau" style="font-size:11px">⟵</button>' : "";
+  const delBtn = (!item.recurring && !inSlot) ? '<button class="mini del" title="Supprimer">✕</button>' : "";
+  el.innerHTML = `
+    <button class="check ${item.done ? "on" : ""}"></button>
+    <span class="todo-text">${escapeHtml(item.text)}${qtyLabel}</span>
+    ${qtyBox}${tag}${unslotBtn}${delBtn}`;
+  el.querySelector(".check").onclick = e => {
+    e.stopPropagation();
+    if (item.qtyInput) {
+      if (!item.done) item.done = true; else { item.done = false; item.qty = null; }
+    } else item.done = !item.done;
+    save(); renderTodos();
+  };
+  const qi = el.querySelector(".qty-inp");
+  if (qi) {
+    qi.onclick = e => e.stopPropagation();
+    const commit = () => { const v = parseInt(qi.value, 10); if (!isNaN(v) && v >= 0) { item.qty = v; item.done = true; save(); renderTodos(); } };
+    qi.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); commit(); } };
+    qi.onblur = commit;
+  }
+  const unslot = el.querySelector(".todo-unslot");
+  if (unslot) unslot.onclick = e => {
+    e.stopPropagation();
+    item.slot = null;
+    if (selectedTodoId === item.id) selectedTodoId = null;
+    save(); renderTodos();
+  };
+  const del = el.querySelector(".del");
+  if (del) del.onclick = e => {
+    e.stopPropagation();
+    const t = todayStr();
+    data.todosByDate[t] = (data.todosByDate[t] || []).filter(x => x.id !== item.id);
+    if (selectedTodoId === item.id) selectedTodoId = null;
+    save(); renderTodos();
+  };
+  el.onclick = () => {
+    if (item.done) return;
+    selectedTodoId = (selectedTodoId === item.id) ? null : item.id;
+    renderDayView();
+  };
+  return el;
+}
+
+function renderDayView() {
+  const pool = document.getElementById("todo-pool");
+  if (!pool) return;
+  const t = todayStr();
+  const list = data ? (data.todosByDate[t] || []) : [];
+  if (selectedTodoId && !list.find(x => x.id === selectedTodoId)) selectedTodoId = null;
+  pool.innerHTML = "";
+  const unassigned = list.filter(x => !x.slot);
+  if (!unassigned.length) {
+    pool.innerHTML = '<div class="empty">Toutes les tâches sont planifiées !</div>';
+  } else {
+    [...unassigned].sort((a, b) => (a.done - b.done) || (b.recurring - a.recurring) || (b.carried - a.carried))
+      .forEach(item => pool.appendChild(todoItemDayEl(item, false)));
+  }
+  const hasSel = !!selectedTodoId;
+  const hint = document.getElementById("pool-hint");
+  if (hint) hint.textContent = hasSel ? "— sélectionné, tape un créneau pour placer" : "— tape une tâche pour la sélectionner";
+  ["matin", "apm", "soir"].forEach(slotId => {
+    const block = document.getElementById("slot-" + slotId);
+    if (!block) return;
+    const items = block.querySelector(".slot-items");
+    items.innerHTML = "";
+    const slotTasks = list.filter(x => x.slot === slotId);
+    if (!slotTasks.length) {
+      const hint = document.createElement("div");
+      hint.className = "empty-slot";
+      hint.textContent = hasSel ? "Appuie ici pour placer la tâche" : "Vide";
+      items.appendChild(hint);
+    } else {
+      slotTasks.forEach(item => items.appendChild(todoItemDayEl(item, true)));
+    }
+    block.classList.toggle("accepting", hasSel);
+  });
+}
+
+document.querySelectorAll(".slot-block").forEach(block => {
+  block.addEventListener("click", e => {
+    if (!selectedTodoId) return;
+    if (e.target.closest(".check") || e.target.closest(".mini")) return;
+    const t = todayStr();
+    const item = (data.todosByDate[t] || []).find(x => x.id === selectedTodoId);
+    if (item) { item.slot = block.dataset.slot; selectedTodoId = null; save(); renderTodos(); }
+  });
+});
+
+/* ---------- WEEK VIEW ---------- */
+let weekOffset = 0;
+
+function getWeekDates(offset) {
+  const [y, m, d] = todayStr().split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  let dow = base.getUTCDay(); dow = dow === 0 ? 7 : dow;
+  const monday = new Date(base.getTime() - (dow - 1) * 864e5 + offset * 7 * 864e5);
+  return Array.from({ length: 7 }, (_, i) => new Date(monday.getTime() + i * 864e5).toISOString().slice(0, 10));
+}
+
+function renderWeekView() {
+  const dates = getWeekDates(weekOffset);
+  const today = todayStr();
+  const opts = { day: "numeric", month: "long", timeZone: "UTC" };
+  const first = new Date(dates[0] + "T12:00:00Z"), last = new Date(dates[6] + "T12:00:00Z");
+  document.getElementById("week-title").textContent =
+    first.toLocaleDateString("fr-FR", opts) + " – " + last.toLocaleDateString("fr-FR", { ...opts, year: "numeric" });
+  const holder = document.getElementById("week-days");
+  holder.innerHTML = "";
+  dates.forEach(date => {
+    const isToday = date === today;
+    const list = data ? (data.todosByDate[date] || []) : [];
+    const done = list.filter(x => x.done).length;
+    const pct = list.length ? Math.round(done / list.length * 100) : null;
+    const day = document.createElement("div");
+    day.className = "week-day" + (isToday ? " today" : "");
+    const dayLabel = new Date(date + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+    const pctCls = pct === 100 ? "tag-rec" : pct > 0 ? "tag-one" : "tag-carry";
+    const slotIco = s => s === "matin" ? "🌅 " : s === "apm" ? "☀️ " : s === "soir" ? "🌙 " : "";
+    const sorted = [...list].sort((a, b) => (a.done - b.done) || (b.recurring - a.recurring));
+    let itemsHtml = sorted.length
+      ? sorted.map(it => `<div class="todo${it.done ? " done" : ""}" style="margin-bottom:6px">
+          <button class="check ${it.done ? "on" : ""}" data-id="${it.id}"></button>
+          <span class="todo-text">${slotIco(it.slot)}${escapeHtml(it.text)}</span>
+          <span class="todo-tag ${it.recurring ? "tag-rec" : it.carried ? "tag-carry" : "tag-one"}" style="font-size:9px">${it.recurring ? "rée." : it.carried ? "rep." : "ponc."}</span>
+        </div>`).join("")
+      : '<div class="empty">Aucune tâche planifiée.</div>';
+    day.innerHTML = `
+      <div class="week-day-head">
+        <span class="day-label">${isToday ? "📅 " : ""}${dayLabel}</span>
+        ${pct !== null ? `<span class="todo-tag ${pctCls}">${pct}%</span>` : ""}
+      </div>
+      <div class="week-items">${itemsHtml}</div>
+      <div class="addrow" style="margin-top:8px">
+        <input type="text" class="week-inp" placeholder="Ajouter une tâche pour ce jour…" style="font-size:12px">
+        <button class="btn week-btn" style="padding:8px 12px;font-size:12px">+</button>
+      </div>`;
+    if (isToday) {
+      day.querySelectorAll(".check[data-id]").forEach(btn => {
+        const item = list.find(x => x.id === btn.dataset.id);
+        if (!item) return;
+        btn.style.cursor = "pointer";
+        btn.onclick = () => { item.done = !item.done; save(); renderTodos(); renderWeekView(); };
+      });
+    }
+    const inp = day.querySelector(".week-inp");
+    const btn = day.querySelector(".week-btn");
+    const addTask = () => {
+      const v = inp.value.trim(); if (!v) return;
+      if (!data.todosByDate[date]) data.todosByDate[date] = [];
+      data.todosByDate[date].push({ id: uid(), text: v, done: false, recurring: false, slot: null });
+      inp.value = "";
+      save();
+      if (date === today) renderTodos(); else renderWeekView();
+    };
+    btn.onclick = addTask;
+    inp.onkeydown = e => { if (e.key === "Enter") addTask(); };
+    holder.appendChild(day);
+  });
+}
+
+document.getElementById("week-prev").onclick = () => { weekOffset--; renderWeekView(); };
+document.getElementById("week-next").onclick = () => { weekOffset++; renderWeekView(); };
 
 /* ---------- INIT ---------- */
 function initAll() {
