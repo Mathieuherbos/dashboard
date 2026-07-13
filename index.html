@@ -1910,9 +1910,14 @@ function renderWeekView() {
   holder.innerHTML = "";
   dates.forEach(date => {
     const isToday = date === today;
-    const list = data ? (data.todosByDate[date] || []) : [];
+    const formal = data ? (data.todosByDate[date] || []) : [];
+    const list = [...formal];
+    (data.recurring || []).forEach(r => {
+      if (!list.some(x => x.recId === r.id))
+        list.push({ recId: r.id, text: r.text, done: false, recurring: true, slot: null });
+    });
     const done = list.filter(x => x.done).length;
-    const pct = list.length ? Math.round(done / list.length * 100) : null;
+    const pct = (list.length && date <= today) ? Math.round(done / list.length * 100) : null;
     const day = document.createElement("div");
     day.className = "week-day" + (isToday ? " today" : "");
     const dayLabel = new Date(date + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
