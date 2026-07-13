@@ -481,7 +481,7 @@
     </div>
   </section>
 
-  <div class="footer">Données sauvegardées localement sur ton appareil · <a id="export">Exporter</a> · <a id="import">Importer</a> · <a id="wipe">Réinitialiser</a></div>
+  <div class="footer">Données sauvegardées localement sur ton appareil · <a id="export">Exporter</a> · <a id="import">Importer</a> · <a id="restore-prev">Restaurer sauvegarde locale</a> · <a id="wipe">Réinitialiser</a></div>
   <input type="file" id="import-file" accept="application/json" style="display:none">
 </div>
 
@@ -1123,6 +1123,16 @@ document.getElementById("import-file").onchange = e => {
 };
 document.getElementById("wipe").onclick = () => {
   if (confirm("Tout effacer et repartir de zéro ?")) { data = seed(); save(); initAll(); }
+};
+document.getElementById("restore-prev").onclick = () => {
+  try {
+    const raw = localStorage.getItem(KEY + "_prev");
+    if (!raw) { alert("Aucune sauvegarde locale disponible."); return; }
+    const d = JSON.parse(raw);
+    if (confirm("Restaurer la sauvegarde locale (état avant la dernière synchro cloud) ?")) {
+      data = normalize(d); save(); initAll();
+    }
+  } catch (e) { alert("Sauvegarde invalide ou absente."); }
 };
 
 function escapeHtml(s) { return (s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
@@ -2013,6 +2023,8 @@ async function refreshFromCloud() {
     const { data: row } = await sb.from("dashboards").select("data, updated_at").eq("user_id", userId).maybeSingle();
     if (!row || !row.data) return;
     if (!lastPushedAt || row.updated_at > lastPushedAt) {
+      // Sauvegarde de l'état local avant d'écraser (filet de sécurité)
+      try { const cur = localStorage.getItem(KEY); if (cur) localStorage.setItem(KEY + "_prev", cur); } catch (e) {}
       data = normalize(row.data);
       lastPushedAt = row.updated_at;
       try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
