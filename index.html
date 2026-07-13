@@ -741,6 +741,33 @@
         <div class="chart-box" style="height:200px;margin-top:12px"><canvas id="chart-checkin"></canvas></div>
       </div>
     </div>
+
+    <!-- GARMIN -->
+    <div class="card" style="margin-top:16px" id="garmin-card">
+      <h2><span class="dot" style="background:var(--accent)"></span>Garmin Instinct 2S</h2>
+      <div class="sub" id="garmin-sync-label">Chargement...</div>
+      <div class="stat-row" id="garmin-stats" style="margin:14px 0"></div>
+      <div class="grid cards2" style="margin-top:16px">
+        <div>
+          <div class="sec-title" style="margin-bottom:8px">Sommeil — phases (min)</div>
+          <div class="chart-box"><canvas id="chart-garmin-sleep"></canvas></div>
+        </div>
+        <div>
+          <div class="sec-title" style="margin-bottom:8px">Pas quotidiens</div>
+          <div class="chart-box"><canvas id="chart-garmin-steps"></canvas></div>
+        </div>
+      </div>
+      <div class="grid cards2" style="margin-top:16px">
+        <div>
+          <div class="sec-title" style="margin-bottom:8px">Fréquence cardiaque (bpm)</div>
+          <div class="chart-box"><canvas id="chart-garmin-hr"></canvas></div>
+        </div>
+        <div>
+          <div class="sec-title" style="margin-bottom:8px">Body Battery</div>
+          <div class="chart-box"><canvas id="chart-garmin-battery"></canvas></div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <div class="footer">Données sauvegardées localement sur ton appareil · <a id="export">Exporter</a> · <a id="import">Importer</a> · <a id="restore-prev">Restaurer sauvegarde locale</a> · <a id="wipe">Réinitialiser</a></div>
@@ -1591,6 +1618,7 @@ function renderHealth() {
   renderFoodList();
   renderSmoking();
   renderCheckin();
+  renderGarmin();
 }
 
 function renderProfile() {
@@ -1841,6 +1869,121 @@ function renderCheckinChart() {
     ] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: tickC, boxWidth: 12 } } },
       scales: { y: { min: 0, max: 5, ticks: { color: tickC, stepSize: 1 }, grid: { color: gridC } }, x: { ticks: { color: tickC, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }, grid: { display: false } } } }
+  });
+}
+
+/* ---------- GARMIN ---------- */
+let chartGarminSleep, chartGarminSteps, chartGarminHR, chartGarminBattery;
+let _garminRows = [];
+
+async function loadGarminData() {
+  try {
+    const { data: rows, error } = await sb
+      .from('garmin_daily')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(14);
+    if (error) throw error;
+    _garminRows = (rows || []).sort((a, b) => a.date.localeCompare(b.date));
+  } catch (e) {
+    console.warn('Garmin load error:', e);
+    _garminRows = [];
+  }
+}
+
+async function renderGarmin() {
+  await loadGarminData();
+  const rows = _garminRows;
+  const today = rows.length ? rows[rows.length - 1] : null;
+
+  const syncLabel = document.getElementById('garmin-sync-label');
+  if (today) {
+    const d = today.synced_at ? new Date(today.synced_at).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels' }) : today.date;
+    syncLabel.textContent = 'Dernière sync : ' + d;
+  } else {
+    syncLabel.textContent = 'Aucune donnée — le workflow n8n doit encore tourner.';
+    return;
+  }
+
+  const sleepH = today.sleep_total != null ? (today.sleep_total / 60).toFixed(1) + 'h' : '—';
+  const steps  = today.steps != null ? today.steps.toLocaleString('fr-FR') : '—';
+  const hrRest = today.hr_resting ?? '—';
+  const batt   = today.body_battery_high != null ? today.body_battery_high + ' / ' + today.body_battery_low : '—';
+  const stress = today.stress_avg != null ? today.stress_avg : '—';
+
+  document.getElementById('garmin-stats').innerHTML =
+    '<div class="stat"><div class="num">' + steps  + '</div><div class="lbl">Pas</div></div>' +
+    '<div class="stat"><div class="num">' + sleepH + '</div><div class="lbl">Sommeil</div></div>' +
+    '<div class="stat"><div class="num">' + hrRest + '</div><div class="lbl">FC repos (bpm)</div></div>' +
+    '<div class="stat"><div class="num">' + batt   + '</div><div class="lbl">Body Battery ↑↓</div></div>' +
+    '<div class="stat"><div class="num">' + stress + '</div><div class="lbl">Stress moy.</div></div>';
+
+  const labels = rows.map(r => r.date.slice(5).replace('-', '/'));
+  const tickC = '#9B8FC7', gridC = '#33235f';
+
+  if (chartGarminSleep) chartGarminSleep.destroy();
+  chartGarminSleep = new Chart(document.getElementById('chart-garmin-sleep'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Léger',   data: rows.map(r => r.sleep_light), backgroundColor: '#67E8F9', stack: 's' },
+      { label: 'Profond', data: rows.map(r => r.sleep_deep),  backgroundColor: '#A78BFA', stack: 's' },
+      { label: 'REM',     data: rows.map(r => r.sleep_rem),   backgroundColor: '#30E81C', stack: 's' },
+      { label: 'Éveillé', data: rows.map(r => r.sleep_awake), backgroundColor: '#F97316', stack: 's' },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: tickC, boxWidth: 10, font: { size: 11 } } } },
+      scales: {
+        x: { stacked: true, ticks: { color: tickC, maxRotation: 0 }, grid: { display: false } },
+        y: { stacked: true, ticks: { color: tickC, callback: v => v + 'm' }, grid: { color: gridC } }
+      }
+    }
+  });
+
+  if (chartGarminSteps) chartGarminSteps.destroy();
+  chartGarminSteps = new Chart(document.getElementById('chart-garmin-steps'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Pas', data: rows.map(r => r.steps), backgroundColor: 'rgba(48,232,28,.55)', borderColor: '#30E81C', borderWidth: 1 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: tickC, maxRotation: 0 }, grid: { display: false } },
+        y: { ticks: { color: tickC }, grid: { color: gridC } }
+      }
+    }
+  });
+
+  if (chartGarminHR) chartGarminHR.destroy();
+  chartGarminHR = new Chart(document.getElementById('chart-garmin-hr'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'FC repos', data: rows.map(r => r.hr_resting), borderColor: '#F87171', backgroundColor: 'rgba(248,113,113,.15)', fill: true, tension: .3, pointRadius: 3, spanGaps: true },
+      { label: 'FC max',   data: rows.map(r => r.hr_max),     borderColor: '#FCA5A5', borderDash: [4,3], backgroundColor: 'transparent', tension: .3, pointRadius: 2, spanGaps: true },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: tickC, boxWidth: 10, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: tickC, maxRotation: 0 }, grid: { display: false } },
+        y: { ticks: { color: tickC, callback: v => v + ' bpm' }, grid: { color: gridC } }
+      }
+    }
+  });
+
+  if (chartGarminBattery) chartGarminBattery.destroy();
+  chartGarminBattery = new Chart(document.getElementById('chart-garmin-battery'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Max chargé', data: rows.map(r => r.body_battery_high), borderColor: '#30E81C', backgroundColor: 'rgba(48,232,28,.12)', fill: true, tension: .3, pointRadius: 3, spanGaps: true },
+      { label: 'Min drainé', data: rows.map(r => r.body_battery_low),  borderColor: '#F97316', backgroundColor: 'rgba(249,115,22,.12)', fill: true, tension: .3, pointRadius: 3, spanGaps: true },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: tickC, boxWidth: 10, font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: tickC, maxRotation: 0 }, grid: { display: false } },
+        y: { min: 0, max: 100, ticks: { color: tickC }, grid: { color: gridC } }
+      }
+    }
   });
 }
 
