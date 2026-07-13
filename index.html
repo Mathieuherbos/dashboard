@@ -519,6 +519,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let userId = null;
+let lastPushedAt = null;
 
 function setSync(state, text) {
   const b = document.getElementById("sync-badge");
@@ -687,8 +688,11 @@ function save() {
 }
 async function pushToCloud() {
   if (!userId || !data) return;
+  saveTimer = null;
+  const now = new Date().toISOString();
   try {
-    const { error } = await sb.from("dashboards").upsert({ user_id: userId, data, updated_at: new Date().toISOString() });
+    const { error } = await sb.from("dashboards").upsert({ user_id: userId, data, updated_at: now });
+    if (!error) lastPushedAt = now;
     setSync(error ? "err" : "ok", error ? "Erreur de synchro" : "Synchronisé");
   } catch (e) { setSync("err", "Hors ligne"); }
 }
@@ -1994,13 +1998,34 @@ function startMidnightTimer() {
 async function loadData() {
   let d = null;
   try {
-    const { data: row } = await sb.from("dashboards").select("data").eq("user_id", userId).maybeSingle();
-    if (row && row.data) d = row.data;
+    const { data: row } = await sb.from("dashboards").select("data, updated_at").eq("user_id", userId).maybeSingle();
+    if (row && row.data) { d = row.data; lastPushedAt = row.updated_at || null; }
   } catch (e) { /* hors ligne : on retombera sur le cache */ }
   if (!d) d = localLoad() || seed();
   data = normalize(d);
-  save();          // persiste la version migrée + crée la ligne cloud si absente
+  save();
   setSync("ok", "Synchronisé");
+}
+
+async function refreshFromCloud() {
+  if (!userId || saveTimer) return; // Ne pas écraser si une sauvegarde est en cours
+  try {
+    const { data: row } = await sb.from("dashboards").select("data, updated_at").eq("user_id", userId).maybeSingle();
+    if (!row || !row.data) return;
+    if (!lastPushedAt || row.updated_at > lastPushedAt) {
+      data = normalize(row.data);
+      lastPushedAt = row.updated_at;
+      try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+      initAll();
+      // Re-render l'onglet actif si besoin
+      const active = document.querySelector(".panel.active")?.id;
+      if (active === "sport") renderSport();
+      if (active === "sante") renderHealth();
+      if (active === "finances") renderFinances();
+      if (active === "week") renderWeekView();
+      setSync("ok", "Synchronisé");
+    }
+  } catch (e) {}
 }
 
 async function onSignedIn(session) {
@@ -2010,6 +2035,11 @@ async function onSignedIn(session) {
   await loadData();
   initAll();
   startMidnightTimer();
+  // Sync depuis un autre appareil : au retour sur l'onglet/app et toutes les 5 min
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshFromCloud();
+  });
+  setInterval(refreshFromCloud, 5 * 60 * 1000);
 }
 
 function showLogin() {
