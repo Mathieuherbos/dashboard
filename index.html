@@ -442,7 +442,9 @@
     }
     .tab.active { border-left-color: var(--accent) !important; border-bottom: none !important; }
     #menu-backdrop {
-      display: none; position: fixed; inset: 0; z-index: 299;
+      display: none; position: fixed;
+      top: 0; left: 280px; right: 0; bottom: 0;
+      z-index: 250;
       background: rgba(0,0,0,0.55);
     }
     #menu-backdrop.open { display: block; }
