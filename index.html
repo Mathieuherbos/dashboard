@@ -989,20 +989,21 @@ async function pushToCloud() {
 // Ensure today's todo list exists and includes all recurring templates
 function ensureToday() {
   const t = todayStr();
-  if (!data.todosByDate[t]) {
-    data.todosByDate[t] = [];
-    // Report des tâches ponctuelles non terminées du dernier jour connu
+  if (!data.todosByDate[t]) data.todosByDate[t] = [];
+  const list = data.todosByDate[t];
+
+  // Report des tâches ponctuelles non terminées — tourne tant qu'aucune tâche reportée n'est présente
+  if (!list.some(x => x.carried)) {
     const prevKeys = Object.keys(data.todosByDate).filter(k => k < t).sort();
     const prevKey = prevKeys[prevKeys.length - 1];
     if (prevKey) {
       data.todosByDate[prevKey].forEach(item => {
-        if (!item.done && !item.recurring) {
-          data.todosByDate[t].push({ id: uid(), text: item.text, done: false, recurring: false, carried: true, slot: null });
+        if (!item.done && !item.recurring && !list.some(x => x.carried && x.text === item.text)) {
+          list.push({ id: uid(), text: item.text, done: false, recurring: false, carried: true, slot: null });
         }
       });
     }
   }
-  const list = data.todosByDate[t];
   data.recurring.forEach(r => {
     if (!list.some(x => x.recId === r.id)) {
       list.push({ id: uid(), recId: r.id, text: r.text, done: false, recurring: true, qtyInput: !!r.qtyInput, unit: r.unit || "", slot: null });
